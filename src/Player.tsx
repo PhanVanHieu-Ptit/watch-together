@@ -1,125 +1,139 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Room } from "./types";
 declare global {
-  interface Window {
-    YT: any;
-    onYouTubeIframeAPIReady: () => void;
-  }
+  interface Window { YT: any; onYouTubeIframeAPIReady: () => void; }
 }
-export function Player({
-  playback,
-  onChange,
-  offset,
-}: {
-  playback: Room["playback"];
-  onChange: (playing: boolean, position: number) => void;
-  offset: number;
+let api: Promise<void> | undefined;
+function loadAPI() {
+  if (window.YT?.Player) return Promise.resolve();
+  if (!api) api = new Promise<void>((resolve, reject) => {
+    const previous = window.onYouTubeIframeAPIReady;
+    const timer = setTimeout(() => { api = undefined; reject(new Error("timeout")); }, 15000);
+    window.onYouTubeIframeAPIReady = () => { previous?.(); clearTimeout(timer); resolve(); };
+    document.querySelector("script[data-youtube]")?.remove();
+    const script = document.createElement("script");
+    script.src = "https://www.youtube.com/iframe_api";
+    script.dataset.youtube = "true";
+    script.onerror = () => { clearTimeout(timer); api = undefined; reject(new Error("network")); };
+    document.head.appendChild(script);
+  });
+  return api;
+}
+const errors: Record<number, string> = {
+  2: "Mã video không hợp lệ.",
+  5: "Trình duyệt không phát được video này.",
+  100: "Video đã bị xóa hoặc đặt riêng tư.",
+  101: "Chủ video không cho phép nhúng.",
+  150: "Chủ video không cho phép nhúng.",
+  153: "YouTube không xác minh được nguồn nhúng. Kiểm tra Referer và cấu hình website.",
+};
+export function Player({ playback, muted, offset, connected, onEnded }: {
+  onEnded?: () => void; playback: Room["playback"]; muted: boolean; offset: number; connected: boolean;
 }) {
-  const root = useRef<HTMLDivElement>(null),
-    player = useRef<any>(null),
-    current = useRef(playback),
-    change = useRef(onChange),
-    syncing = useRef(0),
-    offsetRef = useRef(offset);
-  const sample = useRef({ position: 0, time: 0 });
-  const [error, setError] = useState("");
-  current.current = playback;
-  change.current = onChange;
-  offsetRef.current = offset;
-  const sync = () => {
-    const p = player.current,
-      s = current.current;
-    if (!p?.getPlayerState) return;
-    const target = Math.max(
-      0,
-      s.position +
-        (s.playing ? (Date.now() + offsetRef.current - s.updatedAt) / 1000 : 0),
-    );
-    if (p.getVideoData?.()?.video_id !== s.youtubeId) {
-      syncing.current = Date.now() + 1500;
-      setError("");
-      p.cueVideoById(s.youtubeId, target);
-    } else if (Math.abs((p.getCurrentTime() || 0) - target) > 2) {
-      syncing.current = Date.now() + 1000;
-      p.seekTo(target, true);
+  const endedCallback = useRef(onEnded); endedCallback.current = onEnded;
+  const root = useRef<HTMLDivElement>(null), player = useRef<any>(null);
+  const latest = useRef({ playback, muted, offset, connected });
+  latest.current = { playback, muted, offset, connected };
+  const loaded = useRef(""), ready = useRef(false), lastCorrection = useRef(0);
+  const failure = useRef(false), blocked = useRef(false);
+  const [error, setError] = useState(""), [loading, setLoading] = useState(true);
+  const [needsTap, setNeedsTap] = useState(false), [retry, setRetry] = useState(0);
+  const [volume, setVolume] = useState(() => Number(localStorage.getItem("cx-volume") ?? 80));
+  const volumeRef = useRef(volume); volumeRef.current = volume;
+  const sync = (force = false) => {
+    const p = player.current, { playback: s, offset, connected } = latest.current;
+    if (!ready.current || !p) return;
+    if (!connected) { p.pauseVideo(); return; }
+    if (loaded.current !== s.videoId) {
+      loaded.current = s.videoId; failure.current = false; blocked.current = false;
+      setError(""); setNeedsTap(false);
+      const target = Math.max(0, s.positionAtUpdate + (s.status === "playing" ? Math.max(0, Date.now() + offset - s.updatedAtServer) / 1000 : 0));
+      if (s.status === "playing") p.loadVideoById({ videoId: s.videoId, startSeconds: target });
+      else p.cueVideoById({ videoId: s.videoId, startSeconds: target });
+      lastCorrection.current = performance.now();
+      return;
     }
-    if (s.playing && p.getPlayerState() !== 1) {
-      syncing.current = Date.now() + 1000;
-      p.playVideo();
+    if (failure.current || (blocked.current && !force)) return;
+    const duration = p.getDuration();
+    let target = Math.max(0, s.positionAtUpdate + (s.status === "playing" ? Math.max(0, Date.now() + offset - s.updatedAtServer) / 1000 : 0));
+    if (duration > 0) target = Math.min(target, Math.max(0, duration - 0.1));
+    const state = p.getPlayerState();
+    if (root.current) {
+      root.current.dataset.position = String(p.getCurrentTime() || 0);
+      root.current.dataset.target = String(target);
+      root.current.dataset.state = String(state);
+      root.current.dataset.revision = String(s.revision);
+      root.current.dataset.video = s.videoId;
     }
-    if (!s.playing && p.getPlayerState() === 1) {
-      syncing.current = Date.now() + 1000;
-      p.pauseVideo();
+    // Buffering is local; never publish it or repeatedly seek while recovering.
+    if (state === 3 && !force) return;
+    const drift = Math.abs((p.getCurrentTime() || 0) - target);
+    if ((force || drift > 1.25) && (force || performance.now() - lastCorrection.current > 2500)) {
+      p.seekTo(target, true); lastCorrection.current = performance.now();
     }
-    sample.current = { position: p.getCurrentTime() || 0, time: Date.now() };
+    if (s.status === "playing" && state !== 1 && !(state === 0 && duration > 0 && target >= duration - 0.2)) p.playVideo();
+    if (s.status === "paused" && state !== 2 && state !== 5) p.pauseVideo();
   };
   useEffect(() => {
     let alive = true;
-    const init = () => {
-      if (!alive || !root.current) return;
-      player.current = new window.YT.Player(root.current, {
-        videoId: current.current.youtubeId,
-        playerVars: { autoplay: 0, controls: 1, rel: 0, playsinline: 1 },
+    ready.current = false; loaded.current = ""; failure.current = false; blocked.current = false;
+    setLoading(true); setError(""); setNeedsTap(false);
+    // YT replaces its target node. Keep React's wrapper intact across retries.
+    const mount = document.createElement("div");
+    root.current?.replaceChildren(mount);
+    const timeout = setTimeout(() => { if (alive && !ready.current) { setLoading(false); setError("Không thể tải trình phát. Kiểm tra kết nối rồi thử lại."); } }, 20000);
+    loadAPI().then(() => {
+      if (!alive) return;
+      player.current = new window.YT.Player(mount, {
+        videoId: latest.current.playback.videoId,
+        playerVars: { autoplay: 0, controls: 0, disablekb: 1, rel: 0, playsinline: 1, origin: location.origin },
         events: {
-          onReady: sync,
-          onError: () =>
-            setError(
-              "Video không cho phép nhúng hoặc không khả dụng. Hãy chọn video khác.",
-            ),
+          onReady: (e: any) => {
+            if (!alive) return;
+            ready.current = true; clearTimeout(timeout); setLoading(false);
+            const iframe = e.target.getIframe();
+            iframe.setAttribute("allow", "autoplay; encrypted-media; fullscreen; picture-in-picture");
+            iframe.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+            e.target.setVolume(volumeRef.current);
+            latest.current.muted ? e.target.mute() : e.target.unMute();
+            sync();
+          },
+          onAutoplayBlocked: () => { if (alive) { blocked.current = true; setNeedsTap(true); } },
+          onError: (e: any) => { if (alive) { failure.current = true; setLoading(false); setError(errors[e.data] || "Không thể phát video. Kiểm tra kết nối rồi thử lại."); } },
           onStateChange: (e: any) => {
-            if (Date.now() < syncing.current) return;
-            if (e.data === 1 || e.data === 2)
-              change.current(e.data === 1, player.current.getCurrentTime());
+            if (alive && e.data === 0 && latest.current.connected && loaded.current === latest.current.playback.videoId) endedCallback.current?.();
+            if (alive && e.data === 1) { blocked.current = false; setNeedsTap(false); }
           },
         },
       });
-    };
-    if (window.YT?.Player) init();
-    else {
-      window.onYouTubeIframeAPIReady = init;
-      if (!document.querySelector("script[data-youtube]")) {
-        const s = document.createElement("script");
-        s.src = "https://www.youtube.com/iframe_api";
-        s.dataset.youtube = "true";
-        document.head.appendChild(s);
-      }
-    }
-    const timer = setInterval(sync, 3000);
-    const seekTimer = setInterval(() => {
-      const p = player.current;
-      if (!p?.getCurrentTime) return;
-      const now = Date.now(),
-        pos = p.getCurrentTime() || 0,
-        state = p.getPlayerState(),
-        prev = sample.current;
-      if (prev.time && now > syncing.current && (state === 1 || state === 2)) {
-        const expected =
-          prev.position + (state === 1 ? (now - prev.time) / 1000 : 0);
-        if (Math.abs(pos - expected) > 2) {
-          current.current = {
-            ...current.current,
-            playing: state === 1,
-            position: pos,
-            updatedAt: now + offsetRef.current,
-          };
-          change.current(state === 1, pos);
-        }
-      }
-      sample.current = { position: pos, time: now };
-    }, 400);
+    }).catch(() => { if (alive) { setLoading(false); setError("Không tải được YouTube. Kiểm tra kết nối rồi thử lại."); } });
+    const timer = setInterval(() => sync(), 1000);
+    const online = () => { if (alive) setRetry(n => n + 1); };
+    const offline = () => { if (alive) setError("Đã mất mạng. Video của cả rạp vẫn được giữ lại."); };
+    const visible = () => { if (!document.hidden) sync(); };
+    window.addEventListener("online", online); window.addEventListener("offline", offline);
+    document.addEventListener("visibilitychange", visible);
     return () => {
-      alive = false;
-      clearInterval(timer);
-      clearInterval(seekTimer);
-      player.current?.destroy?.();
-      player.current = null;
+      alive = false; ready.current = false;
+      clearTimeout(timeout); clearInterval(timer);
+      window.removeEventListener("online", online); window.removeEventListener("offline", offline);
+      document.removeEventListener("visibilitychange", visible);
+      player.current?.destroy?.(); player.current = null;
     };
-  }, []);
-  useEffect(sync, [playback, offset]);
-  return (
-    <>
-      <div ref={root} />
-      {error && <div className="player-error">{error}</div>}
-    </>
-  );
+  }, [retry]);
+  useEffect(() => { sync(); }, [playback.revision, connected, offset]);
+  useEffect(() => { if (ready.current) muted ? player.current.mute() : player.current.unMute(); }, [muted]);
+  useEffect(() => { localStorage.setItem("cx-volume", String(volume)); if (ready.current) player.current.setVolume(volume); }, [volume]);
+  const feedback = <div className="player-feedback">
+    {loading && <div className="player-loading" role="status">Đang chuẩn bị màn chiếu…</div>}
+    {needsTap && !error && <div className="player-error"><button onClick={() => { blocked.current = false; setNeedsTap(false); sync(true); }}>Chạm để bắt đầu</button></div>}
+    {error && <div className="player-error" role="alert">{error} <button onClick={() => setRetry(n => n + 1)}>Thử lại</button><a href={"https://www.youtube.com/watch?v="+playback.videoId} target="_blank" rel="noopener noreferrer">Mở trên YouTube ↗</a></div>}
+  </div>;
+  const feedbackTarget = root.current?.closest(".stage");
+  return <>
+    <div ref={root} className="youtube-mount" />
+    {feedbackTarget ? createPortal(feedback, feedbackTarget) : feedback}
+    <label className="local-volume">Âm lượng của bạn <input aria-label="Âm lượng của bạn" type="range" min="0" max="100" value={volume} onChange={e => setVolume(Number(e.target.value))} /></label>
+  </>;
 }

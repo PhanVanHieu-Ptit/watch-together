@@ -3,6 +3,8 @@ export type Person = {
   name: string;
   avatar: string;
   seat: number | null;
+  shirtColor?: string;
+  bodyStyle?: "classic" | "tall" | "broad" | "cap";
 };
 export type Video = {
   id: string;
@@ -20,15 +22,19 @@ export type Chat = {
   createdAt: number;
 };
 export type Room = {
+  roomId?: string; name?: string; maxMembers?: number; expiresAt?: number;
+  permissions?: {chat: boolean; addVideo: boolean; playback: boolean};
+  skipVote?: {id: string; votes: string[]; threshold: number; expiresAt: number} | null;
   participants: Person[];
   queue: Video[];
   messages: Chat[];
   playback: {
-    youtubeId: string;
+    videoId: string;
     title: string;
-    playing: boolean;
-    position: number;
-    updatedAt: number;
+    status: "playing" | "paused";
+    positionAtUpdate: number;
+    updatedAtServer: number;
+    revision: number;
   };
   serverTime?: number;
 };

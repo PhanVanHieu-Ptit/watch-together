@@ -5,11 +5,12 @@ export const createRoom = () => ({
   messages: [],
   queue: [],
   playback: {
-    youtubeId: "jfKfPfyJRdk",
-    title: "Lofi hip hop radio · beats to relax / study to",
-    playing: false,
-    position: 0,
-    updatedAt: Date.now(),
+    videoId: "aqz-KE-bpKQ",
+    title: "Big Buck Bunny · Blender Foundation",
+    status: "paused",
+    positionAtUpdate: 0,
+    updatedAtServer: Date.now(),
+    revision: 0,
   },
 });
 export function selectSeat(r, id, seat) {
@@ -20,29 +21,12 @@ export function selectSeat(r, id, seat) {
   p.seat = seat;
   return true;
 }
-export function youtubeId(input) {
-  try {
-    const u = new URL(input);
-    if (
-      !["youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"].includes(
-        u.hostname,
-      )
-    )
-      return null;
-    const id =
-      u.hostname === "youtu.be"
-        ? u.pathname.slice(1)
-        : u.searchParams.get("v") ||
-          u.pathname.match(/^\/(?:shorts|embed)\/([^/]+)/)?.[1];
-    return /^[\w-]{11}$/.test(id || "") ? id : null;
-  } catch {
-    return /^[\w-]{11}$/.test(input) ? input : null;
-  }
-}
+export { youtubeId } from "../shared/youtube.js";
 export const message = (p, text) => ({
   id: randomUUID(),
   userId: p.id,
   name: p.name,
+  displayName: p.name,
   avatar: p.avatar,
   text,
   createdAt: Date.now(),

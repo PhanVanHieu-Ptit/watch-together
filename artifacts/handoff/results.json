@@ -1,0 +1,37 @@
+{
+  "checks": [
+    "Two independent browser users: real socket join and chat delivery",
+    "390px chat remains inside resized 430px available viewport",
+    "Drawer Escape and focus containment",
+    "Seat keyboard navigation, server confirmation, modal focus and Escape",
+    "Invalid URL keeps form open",
+    "Socket offline disables playback; reconnect recovers membership",
+    "Reduced motion suppresses message animation",
+    "WebGL unavailable falls back to 2D and keyboard seat dialog",
+    "Simulated YouTube autoplay block exposes local tap recovery",
+    "Simulated YouTube embedding error 101 has explicit retry",
+    "Player offline error and retry visible",
+    "Blocked YouTube script reports failure without pretending playback works",
+    "Private room UI creation and invite join; denied queue add retains form and URL",
+    "Slow socket handshake keeps join pending until server confirms",
+    "No uncaught application errors across tested pages"
+  ],
+  "pageErrors": [],
+  "consoleErrors": [
+    "Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+    "Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+    "THREE.WebGLRenderer: Error creating WebGL context.",
+    "Failed to load resource: net::ERR_FAILED"
+  ],
+  "youtube": [
+    {
+      "kind": "real-network",
+      "messages": [],
+      "iframe": 1
+    }
+  ],
+  "limitations": [
+    "Real mobile keyboard, physical rotation and iOS safe-area require a real device; viewport resize only simulates available space."
+  ],
+  "status": "passed"
+}

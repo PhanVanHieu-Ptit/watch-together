@@ -4,6 +4,6 @@ export default defineConfig({
   plugins: [react()],
   server: {
     strictPort: true,
-    proxy: { "/socket.io": { target: "http://127.0.0.1:3001", ws: true } },
+    proxy: { "/api": "http://127.0.0.1:3001", "/socket.io": { target: "http://127.0.0.1:3001", ws: true } },
   },
 });

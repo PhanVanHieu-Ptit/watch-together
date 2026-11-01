@@ -1,0 +1,170 @@
+[
+  {
+    "label": "late join",
+    "data": [
+      {
+        "position": "9.85601904005432",
+        "target": "9.99235009765625",
+        "state": "1",
+        "revision": "1",
+        "video": "aqz-KE-bpKQ"
+      },
+      {
+        "position": "8.538541904632568",
+        "target": "9.532949951171876",
+        "state": "1",
+        "revision": "1",
+        "video": "aqz-KE-bpKQ"
+      }
+    ],
+    "errors": [
+      [],
+      []
+    ],
+    "residuals": [
+      -0.13633105760192876,
+      -0.9944080465393075
+    ],
+    "estimatedPairDrift": 0.8580769889373787
+  },
+  {
+    "label": "pause",
+    "data": [
+      {
+        "position": "10.425844",
+        "target": "10.543",
+        "state": "2",
+        "revision": "2",
+        "video": "aqz-KE-bpKQ"
+      },
+      {
+        "position": "9.552392",
+        "target": "10.543",
+        "state": "2",
+        "revision": "2",
+        "video": "aqz-KE-bpKQ"
+      }
+    ],
+    "errors": [
+      [],
+      []
+    ],
+    "residuals": [
+      -0.1171559999999996,
+      -0.9906079999999999
+    ],
+    "estimatedPairDrift": 0.8734520000000003
+  },
+  {
+    "label": "seek",
+    "data": [
+      {
+        "position": "42",
+        "target": "42",
+        "state": "2",
+        "revision": "3",
+        "video": "aqz-KE-bpKQ"
+      },
+      {
+        "position": "42",
+        "target": "42",
+        "state": "2",
+        "revision": "3",
+        "video": "aqz-KE-bpKQ"
+      }
+    ],
+    "errors": [
+      [],
+      []
+    ],
+    "residuals": [
+      0,
+      0
+    ],
+    "estimatedPairDrift": 0
+  },
+  {
+    "label": "play",
+    "data": [
+      {
+        "position": "42.85752096948242",
+        "target": "42.94839990234375",
+        "state": "1",
+        "revision": "4",
+        "video": "aqz-KE-bpKQ"
+      },
+      {
+        "position": "43.41997496185303",
+        "target": "43.48994995117187",
+        "state": "1",
+        "revision": "4",
+        "video": "aqz-KE-bpKQ"
+      }
+    ],
+    "errors": [
+      [],
+      []
+    ],
+    "residuals": [
+      -0.09087893286132953,
+      -0.06997498931884394
+    ],
+    "estimatedPairDrift": 0.020903943542485592
+  },
+  {
+    "label": "change video",
+    "data": [
+      {
+        "position": "3.932716969482422",
+        "target": "4.96439990234375",
+        "state": "1",
+        "revision": "5",
+        "video": "M7lc1UVf-VE"
+      },
+      {
+        "position": "3.437074824523926",
+        "target": "4.50660009765625",
+        "state": "1",
+        "revision": "5",
+        "video": "M7lc1UVf-VE"
+      }
+    ],
+    "errors": [
+      [],
+      []
+    ],
+    "residuals": [
+      -1.0316829328613282,
+      -1.069525273132324
+    ],
+    "estimatedPairDrift": 0.037842340270995756
+  },
+  {
+    "label": "reconnect",
+    "data": [
+      {
+        "position": "86.4667711373291",
+        "target": "86.89630004882812",
+        "state": "1",
+        "revision": "6",
+        "video": "M7lc1UVf-VE"
+      },
+      {
+        "position": "86.40699618119812",
+        "target": "87.00460009765625",
+        "state": "1",
+        "revision": "6",
+        "video": "M7lc1UVf-VE"
+      }
+    ],
+    "errors": [
+      [],
+      []
+    ],
+    "residuals": [
+      -0.4295289114990197,
+      -0.5976039164581266
+    ],
+    "estimatedPairDrift": 0.16807500495910688
+  }
+]

@@ -1,4 +1,4 @@
-# Cùng Xem
+# wetube ciné
 
 Ứng dụng cùng xem YouTube, chọn ghế, chat, bình chọn hàng chờ và tạo phòng riêng. Source nằm trong repo này; frontend production được tạo trong `dist/`.
 
@@ -96,7 +96,7 @@ Biến cấu hình xem `.env.example`: PORT, RECONNECT_GRACE_MS, SKIP_VOTE_MS, S
 4. Giữ Referer/origin hợp lệ cho YouTube; không đặt Referrer-Policy `no-referrer`. Nếu dùng CSP, cho phép script/frame YouTube, ảnh i.ytimg.com và Google Fonts đang dùng; kiểm tra lại playback sau khi áp header.
 5. Health `/api/health` chỉ trả trạng thái và số người rạp cộng đồng. Không công khai `.env` hoặc source server qua static hosting; Express chỉ phục vụ `dist/`.
 
-Chưa có auth tài khoản, DB, quản trị/moderation, khôi phục sau restart, kho rate limit chung hay đồng bộ nhiều replica. Scale cần kho state/phiên/giới hạn dùng chung, Socket.IO adapter và thao tác nguyên tử, không chỉ tăng số process. Chưa tích hợp CI/deploy tự động hay đo tải production. Metadata YouTube, font và video phụ thuộc dịch vụ ngoài. Autoplay, video không cho nhúng, hạn chế tuổi/khu vực và buffering không thể bảo đảm từ app. Báo `ended` là tín hiệu client, chưa chứng thực thời lượng phát.
+Có tài khoản cục bộ theo mục đối chiếu bên dưới; chưa có DB, quản trị/moderation, khôi phục sau restart, kho rate limit chung hay đồng bộ nhiều replica. Scale cần kho state/phiên/giới hạn dùng chung, Socket.IO adapter và thao tác nguyên tử, không chỉ tăng số process. Chưa tích hợp CI/deploy tự động hay đo tải production. Metadata YouTube, font và video phụ thuộc dịch vụ ngoài. Autoplay, video không cho nhúng, hạn chế tuổi/khu vực và buffering không thể bảo đảm từ app. Báo `ended` là tín hiệu client, chưa chứng thực thời lượng phát.
 
 ## Kiểm thử và bàn giao
 
@@ -113,3 +113,36 @@ BASE_URL=http://127.0.0.1:31401 node tests/browser-handoff.mjs
 Có thể đặt `PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs` và `CHROME_PATH=/absolute/path/to/chrome`. Script lưu ảnh và JSON vào `artifacts/handoff/`; YouTube fixture được phân biệt rõ với mạng thật. `tests/browser-sync.mjs` là kiểm thử playback YouTube mạng thật, phụ thuộc chính sách mạng/autoplay và video được phép nhúng.
 
 Xem [báo cáo bàn giao](artifacts/handoff/REPORT.md) cho bằng chứng và phần chưa xác minh. Ảnh/báo cáo cũ trong artifacts là kết quả lần kiểm tra trước, không thay thế báo cáo bàn giao hiện tại. Build còn cảnh báo bundle Three.js lớn; chưa chia bundle/lazy-load.
+
+
+## Đối chiếu choigivui.com (02/11/2026)
+
+Đã thay khung giao diện theo website tham chiếu, thêm đăng ký/đăng nhập và phục hồi phiên bằng cookie HttpOnly. Tài khoản được lưu tại `ACCOUNTS_FILE` (mặc định `data/accounts.json`); mật khẩu băm scrypt với salt. Phiên đăng nhập trong RAM hết hạn sau 7 ngày và mất khi server restart; tài khoản vẫn còn trên đĩa. Backend chạy bằng CLI yêu cầu đăng nhập để vào/tạo phòng. Factory `createBackend()` không có `accountsFile` giữ chế độ khách dành cho test tích hợp.
+
+Chạy lại backend đang mở để nạp API tài khoản mới. Sau đó dùng `npm run dev` hoặc `npm run build && npm start`. Cần một tiến trình server và ổ đĩa bền để giữ tài khoản. Không có khôi phục mật khẩu, xác minh email, CAPTCHA hoặc bot AI trong bản này.
+
+Báo cáo đối chiếu và ảnh nằm tại [artifacts/reference/REPORT.md](artifacts/reference/REPORT.md). Chưa đạt tương đương 100% về hình ảnh hoặc chức năng. Báo cáo cũ trong `artifacts/handoff/` và script `tests/browser-handoff.mjs` sử dụng biểu mẫu khách cũ; không xác nhận giao diện đăng nhập mới.
+
+```sh
+PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs BASE_URL=http://127.0.0.1:3001 node tests/reference-parity.mjs
+```
+
+Script đăng ký tài khoản QA trên server được chỉ định. Dùng server QA riêng và `ACCOUNTS_FILE` tạm để không để lại tài khoản test trong dữ liệu thật.
+
+
+### Cập nhật đối chiếu lần 2
+
+- Thêm bốn góc camera, kéo/zoom chuột và pinch, thanh chat nhanh 160 ký tự, bong bóng chat trên nhân vật, cử chỉ realtime, ba chỗ trên sân khấu (tối đa 60 giây), bot minh họa nhường ghế và nhân vật đi qua lối giữa các hàng.
+- Hồ sơ tên/giới tính/màu áo lưu cùng tài khoản. Đăng ký xong chọn nhân vật rồi chọn ghế. Giới hạn đăng ký trong một tiến trình: 3 tài khoản/giờ, 10/24 giờ/IP; bộ đếm giới hạn và phiên vẫn trong RAM.
+- `queue:preview` lấy metadata; video có nhãn sôi động và BPM 60–200. Phòng xác thực đang trống mở bình chọn `NEXT_VIDEO_DELAY_MS` rồi tự phát video đầu hàng chờ. Chưa xác minh được thời gian bình chọn mặc định trên backend gốc.
+- Chưa cấu hình Turnstile, Anthropic hay thanh toán QR/Telegram. Các mục ủng hộ/chiếu ảnh trả phí thông báo chưa mở; không trừ tiền, không giả xác minh hoặc bot AI.
+- `tests/compare-entry.mjs` đo hình học và typography form công khai, không đo tương đương toàn website. Kết quả tại `artifacts/reference/entry-comparison.json`.
+
+Để chạy QA không phụ thuộc metadata YouTube, mở một server riêng:
+
+```sh
+PORT=31402 ACCOUNTS_FILE=/private/tmp/wetube-reference-qa.json node tests/serve-reference.mjs
+QA_METADATA_FIXTURE=1 PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs BASE_URL=http://127.0.0.1:31402 node tests/reference-parity.mjs
+```
+
+Server fixture chỉ dành cho test: metadata được giả lập và video không được giả lập. Khởi động lại server QA trước mỗi lần chạy để bộ đếm đăng ký không chặn tài khoản test. Không dùng server fixture để triển khai.

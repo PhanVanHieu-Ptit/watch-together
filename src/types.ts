@@ -4,6 +4,11 @@ export type Person = {
   avatar: string;
   seat: number | null;
   shirtColor?: string;
+  gender?: "male" | "female";
+  isBot?: boolean;
+  emote?: {kind: "wave" | "clap" | "dance"; until: number};
+  stageSpot?: number | null;
+  stageUntil?: number;
   bodyStyle?: "classic" | "tall" | "broad" | "cap";
 };
 export type Video = {
@@ -12,6 +17,8 @@ export type Video = {
   title: string;
   addedBy: string;
   votes: string[];
+  energetic?: boolean;
+  bpm?: number;
 };
 export type Chat = {
   id: string;
@@ -31,10 +38,13 @@ export type Room = {
   playback: {
     videoId: string;
     title: string;
+    energetic?: boolean;
+    bpm?: number;
     status: "playing" | "paused";
     positionAtUpdate: number;
     updatedAtServer: number;
     revision: number;
   };
+  nextAt?:number|null;
   serverTime?: number;
 };

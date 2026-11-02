@@ -1,0 +1,281 @@
+{
+  "scope": "Public login form geometry and typography. This is not full-site or pixel equivalence.",
+  "viewports": [
+    {
+      "width": 1440,
+      "height": 900,
+      "measurements": {
+        "reference": {
+          "card": {
+            "x": 535,
+            "y": 92.65625,
+            "width": 370,
+            "height": 714.671875,
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "lineHeight": "normal"
+          },
+          "heading": {
+            "x": 566,
+            "y": 159.65625,
+            "width": 308,
+            "height": 84,
+            "fontSize": "28px",
+            "fontWeight": "500",
+            "lineHeight": "42px"
+          },
+          "username": {
+            "x": 605,
+            "y": 419.4375,
+            "width": 256,
+            "height": 41,
+            "fontSize": "12px",
+            "fontWeight": "500",
+            "lineHeight": "normal"
+          },
+          "password": {
+            "x": 579,
+            "y": 504.4375,
+            "width": 243,
+            "height": 41,
+            "fontSize": "12px",
+            "fontWeight": "500",
+            "lineHeight": "normal"
+          },
+          "submit": {
+            "x": 566,
+            "y": 572.4375,
+            "width": 308,
+            "height": 46,
+            "fontSize": "12px",
+            "fontWeight": "600",
+            "lineHeight": "normal"
+          }
+        },
+        "local": {
+          "card": {
+            "x": 535,
+            "y": 92.65625,
+            "width": 370,
+            "height": 714.671875,
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "lineHeight": "normal"
+          },
+          "heading": {
+            "x": 566,
+            "y": 159.65625,
+            "width": 308,
+            "height": 84,
+            "fontSize": "28px",
+            "fontWeight": "500",
+            "lineHeight": "42px"
+          },
+          "username": {
+            "x": 605,
+            "y": 419.4375,
+            "width": 256,
+            "height": 41,
+            "fontSize": "12px",
+            "fontWeight": "500",
+            "lineHeight": "normal"
+          },
+          "password": {
+            "x": 579,
+            "y": 504.4375,
+            "width": 243,
+            "height": 41,
+            "fontSize": "12px",
+            "fontWeight": "500",
+            "lineHeight": "normal"
+          },
+          "submit": {
+            "x": 566,
+            "y": 572.4375,
+            "width": 308,
+            "height": 46,
+            "fontSize": "12px",
+            "fontWeight": "600",
+            "lineHeight": "normal"
+          }
+        }
+      },
+      "differences": {
+        "card": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "typographyMatches": true
+        },
+        "heading": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "typographyMatches": true
+        },
+        "username": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "typographyMatches": true
+        },
+        "password": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "typographyMatches": true
+        },
+        "submit": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "typographyMatches": true
+        }
+      },
+      "maxGeometryDeltaPx": 0
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "measurements": {
+        "reference": {
+          "card": {
+            "x": 20,
+            "y": 59.96875,
+            "width": 350,
+            "height": 724.0625,
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "lineHeight": "normal"
+          },
+          "heading": {
+            "x": 45,
+            "y": 120.96875,
+            "width": 300,
+            "height": 84,
+            "fontSize": "28px",
+            "fontWeight": "500",
+            "lineHeight": "42px"
+          },
+          "username": {
+            "x": 84,
+            "y": 383.34375,
+            "width": 248,
+            "height": 46,
+            "fontSize": "16px",
+            "fontWeight": "500",
+            "lineHeight": "normal"
+          },
+          "password": {
+            "x": 58,
+            "y": 476.34375,
+            "width": 221,
+            "height": 46,
+            "fontSize": "16px",
+            "fontWeight": "500",
+            "lineHeight": "normal"
+          },
+          "submit": {
+            "x": 45,
+            "y": 549.34375,
+            "width": 300,
+            "height": 48,
+            "fontSize": "15px",
+            "fontWeight": "600",
+            "lineHeight": "normal"
+          }
+        },
+        "local": {
+          "card": {
+            "x": 20,
+            "y": 59.96875,
+            "width": 350,
+            "height": 724.0625,
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "lineHeight": "normal"
+          },
+          "heading": {
+            "x": 45,
+            "y": 120.96875,
+            "width": 300,
+            "height": 84,
+            "fontSize": "28px",
+            "fontWeight": "500",
+            "lineHeight": "42px"
+          },
+          "username": {
+            "x": 84,
+            "y": 383.34375,
+            "width": 248,
+            "height": 46,
+            "fontSize": "16px",
+            "fontWeight": "500",
+            "lineHeight": "normal"
+          },
+          "password": {
+            "x": 58,
+            "y": 476.34375,
+            "width": 221,
+            "height": 46,
+            "fontSize": "16px",
+            "fontWeight": "500",
+            "lineHeight": "normal"
+          },
+          "submit": {
+            "x": 45,
+            "y": 549.34375,
+            "width": 300,
+            "height": 48,
+            "fontSize": "15px",
+            "fontWeight": "600",
+            "lineHeight": "normal"
+          }
+        }
+      },
+      "differences": {
+        "card": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "typographyMatches": true
+        },
+        "heading": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "typographyMatches": true
+        },
+        "username": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "typographyMatches": true
+        },
+        "password": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "typographyMatches": true
+        },
+        "submit": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "typographyMatches": true
+        }
+      },
+      "maxGeometryDeltaPx": 0
+    }
+  ]
+}

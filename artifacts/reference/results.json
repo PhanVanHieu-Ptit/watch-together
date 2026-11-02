@@ -1,0 +1,22 @@
+{
+  "checks": [
+    "Password visibility toggle",
+    "Register, save persistent profile, join room and choose seat",
+    "All four camera modes",
+    "Mouse wheel changes camera zoom",
+    "HUD visibility toggle",
+    "Server-confirmed wave reflected by animated actor",
+    "Two independent authenticated browsers share chat and avatar speech bubbles",
+    "Seat move acknowledged; walking uses aisle path",
+    "Invalid video preview remains in form with error",
+    "Fixture metadata preview, energetic flag and queue submission",
+    "Create private room after joining community",
+    "Account profile, cookie session and private room restore after refresh",
+    "390×844: entry fits viewport without horizontal overflow",
+    "320×740: entry fits viewport without horizontal overflow",
+    "768×1024: entry fits viewport without horizontal overflow",
+    "844×390: entry fits viewport without horizontal overflow"
+  ],
+  "errors": [],
+  "status": "passed"
+}

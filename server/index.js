@@ -1,3 +1,4 @@
+import { installAuth } from "./auth.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import express from "express";
 import { createServer } from "node:http";
@@ -5,7 +6,7 @@ import { Server } from "socket.io";
 import { pathToFileURL } from "node:url";
 import { randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import { avatars, createRoom, selectSeat, youtubeId, message } from "./room.js";
-export function createBackend({ metadata = youtubeMetadata, reconnectMs = 30000, skipMs = 30000, skipRatio = 0.6, emptyRoomMs = 1800000, roomTtlMs = 86400000 } = {}) {
+export function createBackend({ metadata = youtubeMetadata, reconnectMs = 30000, skipMs = 30000, skipRatio = 0.6, emptyRoomMs = 1800000, roomTtlMs = 86400000, nextVideoDelayMs = 20000, accountsFile } = {}) {
 const sessions = new Map(), timers = new Map(), limits = new Map();
 const app = express(),
   http = createServer(app),
@@ -14,6 +15,11 @@ const app = express(),
 const rooms = new Map([["community", room]]), credentials = new Map(), admission = new Map();
 room.roomId = "community"; room.name = "Rạp cộng đồng"; room.maxMembers = 100;
 room.permissions = {chat: true, addVideo: true, playback: false};
+if(accountsFile)Object.assign(room.playback,{videoId:'',title:''});
+const advanceRoom = target => {
+  const video=target.queue.shift(),playback=target.playback;target.skipVote=null;target.nextAt=null;
+  target.playback=video?{videoId:video.youtubeId,title:video.title,energetic:!!video.energetic,bpm:video.bpm||128,status:'playing',positionAtUpdate:0,updatedAtServer:Date.now(),revision:playback.revision+1}:accountsFile?{...playback,videoId:'',title:'',status:'paused',positionAtUpdate:0,updatedAtServer:Date.now(),revision:playback.revision+1}:{...playback,status:'paused',updatedAtServer:Date.now(),revision:playback.revision+1};
+};
 const consume = (key, max) => {
   const now = Date.now(), entry = admission.get(key);
   if (!entry || entry.until <= now) { admission.set(key, {count: 1, until: now + 60000}); return true; }
@@ -29,22 +35,25 @@ const purge = id => {
 const cleanup = setInterval(() => {
   const now = Date.now();
   for (const [id, r] of rooms) if (id !== "community" && (now >= r.expiresAt || (r.emptySince && now-r.emptySince >= emptyRoomMs))) purge(id);
+  for (const r of rooms.values()) {
+    let changed=false;
+    if(r.nextAt&&r.nextAt<=now){advanceRoom(r);changed=true;}
+    for(const person of r.participants)if(person.stageUntil&&person.stageUntil<=now){person.stageSpot=null;person.stageUntil=null;changed=true;}
+    if(changed)io.to(r.roomId).emit('state',{...r,serverTime:now});
+  }
   for (const [key, value] of admission) if (value.until <= now) admission.delete(key);
 }, Math.min(1000, emptyRoomMs, roomTtlMs)); cleanup.unref();
 app.get("/api/health", (_, res) =>
   res.json({ ok: true, participants: room.participants.length }),
 );
+app.use(express.json({limit:"8kb"}));
+const auth = installAuth(app, {file:accountsFile, consume});
 app.use(express.static("dist"));
 io.on("connection", (socket) => {
   let room = rooms.get("community");
 const sortQueue = () => room.queue.sort((a,b) => b.votes.length-a.votes.length || a.sequence-b.sequence);
 let sequence = 0;
-const advance = () => {
-  const v = room.queue.shift(), p = room.playback;
-  room.skipVote = null;
-  room.playback = v ? { videoId: v.youtubeId, title: v.title, status: "playing", positionAtUpdate: 0, updatedAtServer: Date.now(), revision: p.revision + 1 }
-    : {...p, status: "paused", updatedAtServer: Date.now(), revision: p.revision + 1};
-};
+const advance = () => advanceRoom(room);
 const snapshot = () => ({ ...room, serverTime: Date.now() });
 const broadcast = () => io.to(room.roomId).emit("state", snapshot());
   socket.on("clock", (_, ack) => { if (typeof ack === "function") ack(Date.now()); });
@@ -73,16 +82,19 @@ const broadcast = () => io.to(room.roomId).emit("state", snapshot());
     error = (t) => { if (requests.getStore()) requests.getStore().rejected = true; socket.emit("notice", t); };
   socket.on("room:create", (d, ack) => {
     const fail = text => {error(text); if (typeof ack === "function") ack({ok:false});};
+    if (accountsFile && !auth.account(socket.handshake.headers)) return fail("Bạn cần đăng nhập để tạo phòng.");
     if (person()) return fail("Hãy rời phòng trước khi tạo phòng mới.");
     if (!consume("create:"+socket.handshake.address, 5)) return fail("Tạo phòng quá nhanh. Thử lại sau một phút.");
     if (typeof d?.name !== "string" || !d.name.trim() || d.name.length > 60 || !Number.isInteger(d.maxMembers) || d.maxMembers < 1 || d.maxMembers > 100 || (d.password !== undefined && (typeof d.password !== "string" || d.password.length > 128))) return fail("Thông tin phòng không hợp lệ.");
     const id = randomUUID(), r = createRoom();
     Object.assign(r, {roomId:id, name:d.name.trim(), maxMembers:d.maxMembers, permissions:{chat:true, addVideo:true, playback:false}, expiresAt:Date.now()+roomTtlMs, emptySince:Date.now()});
+    if(accountsFile)Object.assign(r.playback,{videoId:"",title:""});
     if (d.password) { const salt = randomUUID(); credentials.set(id, {salt, hash:scryptSync(d.password,salt,32)}); }
     rooms.set(id,r);
     if (typeof ack === "function") ack({ok:true, roomId:id});
   });
   socket.on("join", (d) => {
+    if (accountsFile && !auth.account(socket.handshake.headers)) return error("Bạn cần đăng nhập để vào rạp.");
     if (person()) return;
     const id = typeof d?.roomId === "string" ? d.roomId : "community";
     const target = rooms.get(id);
@@ -106,9 +118,12 @@ const broadcast = () => io.to(room.roomId).emit("state", snapshot());
     userId = randomUUID();
     const token = randomUUID();
     sessions.set(token, {id: userId, socketId: socket.id, roomId: room.roomId});
+    const account = auth.account(socket.handshake.headers);
     room.participants.push({
       id: userId, connected: true,
-      name: d.name.trim().slice(0, 24),
+      name: account?.name || d.name.trim().slice(0, 24),
+      ...(account?.gender?{gender:account.gender}:{}),
+      ...(account?.shirtColor?{shirtColor:account.shirtColor}:{}),
       avatar: avatars.includes(d.avatar) ? d.avatar : avatars[0],
       seat: null,
     });
@@ -142,23 +157,48 @@ const broadcast = () => io.to(room.roomId).emit("state", snapshot());
   socket.on("seat", (s) => {
     if (!selectSeat(room, userId, s))
       return error("Ghế vừa có người chọn. Hãy chọn ghế khác.");
+    person().stageSpot=null;person().stageUntil=null;
     broadcast();
   });
   socket.on("appearance", (d) => {
     const p = person();
     if (!p || !d || (d.shirtColor !== undefined && !/^#[0-9a-f]{6}$/i.test(d.shirtColor)) || (d.bodyStyle !== undefined && !["classic", "tall", "broad", "cap"].includes(d.bodyStyle))) return error("Ngoại hình không hợp lệ.");
-    if (d.shirtColor !== undefined) p.shirtColor = d.shirtColor;
-    if (d.bodyStyle !== undefined) p.bodyStyle = d.bodyStyle;
+    if(d.gender!==undefined&&!['male','female'].includes(d.gender))return error('Ngoại hình không hợp lệ.');
+    if(d.name!==undefined&&(typeof d.name!=='string'||d.name.trim().length<2||d.name.trim().length>18))return error('Tên cần từ 2–18 ký tự.');
+    if(d.shirtColor!==undefined)p.shirtColor=d.shirtColor;
+    if(d.bodyStyle!==undefined)p.bodyStyle=d.bodyStyle;
+    if(d.gender!==undefined)p.gender=d.gender;
+    if(d.name!==undefined)p.name=d.name.trim();
     broadcast();
+  });
+  socket.on('emote', d => {
+    const p=person();if(!['wave','clap','dance'].includes(d?.kind))return error('Cử chỉ không hợp lệ.');
+    if(p.seat==null&&p.stageSpot==null)return error('Chọn ghế trước khi tương tác.');
+    if(Date.now()-(limits.get(userId)?.emote||0)<1000)return error('Chờ một chút trước khi tương tác tiếp.');
+    limits.set(userId,{...limits.get(userId),emote:Date.now()});p.emote={kind:d.kind,until:Date.now()+8000};broadcast();
+  });
+  socket.on('stage', d => {
+    const p=person();if(d?.spot===null){p.stageSpot=null;p.stageUntil=null;broadcast();return;}
+    if(!Number.isInteger(d?.spot)||d.spot<0||d.spot>2)return error('Vị trí sân khấu không hợp lệ.');
+    if(p.seat==null)return error('Chọn ghế trước khi lên sân khấu.');
+    if(room.participants.some(other=>other.id!==userId&&other.stageSpot===d.spot&&other.stageUntil>Date.now()))return error('Chỗ này trên sân khấu đã có người.');
+    p.stageSpot=d.spot;p.stageUntil=Date.now()+60000;broadcast();
+  });
+  socket.on('queue:preview', async(d,ack)=>{
+    if(typeof ack!=='function')return;
+    if(!person())return ack({ok:false,error:'Bạn cần vào rạp.'});
+    if(!consume('preview:'+socket.handshake.address,30))return ack({ok:false,error:'Xem trước quá nhanh. Thử lại sau một phút.'});
+    const videoId=youtubeId(typeof d?.url==='string'&&d.url.length<=2048?d.url:'');if(!videoId)return ack({ok:false,error:'Đường dẫn YouTube chưa hợp lệ.'});
+    try{const info=await metadata(videoId);if(!person()||!socket.connected)return;ack({ok:true,video:{...info,youtubeId:videoId}});}catch{ack({ok:false,error:'Không lấy được thông tin video. Hãy thử lại.'});}
   });
   socket.on("chat", (t) => {
     const p = person();
     if (room.participants[0]?.id !== userId && !room.permissions.chat) return error("Chủ phòng đã tắt quyền chat.");
-    if (!p || typeof t !== "string" || !t.trim() || t.trim().length > 500) return error("Tin nhắn phải có từ 1 đến 500 ký tự.");
+    if (!p || typeof t !== "string" || !t.trim() || Array.from(t.trim()).length > 160) return error("Tin nhắn phải có từ 1 đến 160 ký tự.");
     if (Date.now() - (limits.get(userId)?.chat || 0) < 500)
       return error("Chờ một chút trước khi gửi tiếp nhé.");
     limits.set(userId, {...limits.get(userId), chat: Date.now()});
-    room.messages.push(message(p, t.trim().slice(0, 500)));
+    room.messages.push(message(p, Array.from(t.trim()).slice(0,160).join('')));
     room.messages = room.messages.slice(-100);
     broadcast();
   });
@@ -167,12 +207,15 @@ const broadcast = () => io.to(room.roomId).emit("state", snapshot());
     if (room.participants[0]?.id !== userId && !room.permissions.addVideo) return error("Chủ phòng đã tắt quyền thêm video.");
     const id = youtubeId(typeof d?.url === "string" && d.url.length <= 2048 ? d.url : "");
     if (!id) throw new Error("Đường dẫn YouTube chưa hợp lệ.");
+    if(d.energetic!==undefined&&typeof d.energetic!=='boolean')throw new Error('Nhãn video không hợp lệ.');
+    if(d.bpm!==undefined&&(!Number.isFinite(d.bpm)||d.bpm<60||d.bpm>200))throw new Error('Nhịp đèn cần từ 60–200 BPM.');
     if (Date.now() - (limits.get(userId)?.queue || 0) < 1000) throw new Error("Thêm video quá nhanh.");
     limits.set(userId, {...limits.get(userId), queue: Date.now()});
     const info = await metadata(id);
     if (room !== requestedRoom || person() !== p || !socket.connected || (room.participants[0]?.id !== userId && !room.permissions.addVideo)) throw new Error("Phiên đã ngắt kết nối.");
     if (room.queue.length >= 30 || room.queue.some(v => v.youtubeId === id)) throw new Error("Hàng chờ đầy hoặc video đã tồn tại.");
-    room.queue.push({id: randomUUID(), youtubeId: id, ...info, addedBy: p.name, addedByUserId: userId, addedAt: Date.now(), sequence: sequence++, votes: []});
+    room.queue.push({id: randomUUID(), youtubeId: id, ...info, energetic:!!d.energetic,bpm:Math.round(d.bpm||128), addedBy: p.name, addedByUserId: userId, addedAt: Date.now(), sequence: sequence++, votes: []});
+    if(accountsFile&&!room.playback.videoId&&!room.nextAt)room.nextAt=Date.now()+nextVideoDelayMs;
     sortQueue(); broadcast();
   });
   socket.on("vote", (d) => {
@@ -220,7 +263,7 @@ const broadcast = () => io.to(room.roomId).emit("state", snapshot());
     advance();
     broadcast();
   });
-  for (const event of ["room:permissions", "room:kick", "room:leave", "seat", "appearance", "chat", "queue:add", "vote", "playback", "next", "ended", "skip:vote"]) {
+  for (const event of ["room:permissions", "room:kick", "room:leave", "seat", "appearance", "emote", "stage", "chat", "queue:add", "vote", "playback", "next", "ended", "skip:vote"]) {
     const handler = socket.listeners(event)[0];
     socket.removeListener(event, handler);
     socket.on(event, (data, ack) => requests.run({rejected: false}, async () => {
@@ -250,6 +293,6 @@ export async function youtubeMetadata(id) {
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const positive = (name, fallback) => {const n = Number(process.env[name]); return Number.isFinite(n) && n > 0 ? n : fallback;};
-  const backend = createBackend({reconnectMs: positive("RECONNECT_GRACE_MS",30000), skipMs: positive("SKIP_VOTE_MS",30000), skipRatio: Math.min(1,positive("SKIP_VOTE_RATIO",0.6)), emptyRoomMs: positive("EMPTY_ROOM_MS",1800000), roomTtlMs: positive("ROOM_TTL_MS",86400000)});
+  const backend = createBackend({accountsFile:process.env.ACCOUNTS_FILE || "data/accounts.json", nextVideoDelayMs:positive("NEXT_VIDEO_DELAY_MS",20000), reconnectMs: positive("RECONNECT_GRACE_MS",30000), skipMs: positive("SKIP_VOTE_MS",30000), skipRatio: Math.min(1,positive("SKIP_VOTE_RATIO",0.6)), emptyRoomMs: positive("EMPTY_ROOM_MS",1800000), roomTtlMs: positive("ROOM_TTL_MS",86400000)});
   backend.http.listen(process.env.PORT || 3001, () => console.log("Backend: http://localhost:"+(process.env.PORT || 3001)));
 }

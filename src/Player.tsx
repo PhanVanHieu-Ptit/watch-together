@@ -28,8 +28,8 @@ const errors: Record<number, string> = {
   150: "Chủ video không cho phép nhúng.",
   153: "YouTube không xác minh được nguồn nhúng. Kiểm tra Referer và cấu hình website.",
 };
-export function Player({ playback, muted, offset, connected, onEnded }: {
-  onEnded?: () => void; playback: Room["playback"]; muted: boolean; offset: number; connected: boolean;
+export function Player({ playback, muted, offset, connected, onEnded, volume=80, captions=false }: {
+  volume?:number; captions?:boolean; onEnded?: () => void; playback: Room["playback"]; muted: boolean; offset: number; connected: boolean;
 }) {
   const endedCallback = useRef(onEnded); endedCallback.current = onEnded;
   const root = useRef<HTMLDivElement>(null), player = useRef<any>(null);
@@ -39,8 +39,8 @@ export function Player({ playback, muted, offset, connected, onEnded }: {
   const failure = useRef(false), blocked = useRef(false);
   const [error, setError] = useState(""), [loading, setLoading] = useState(true);
   const [needsTap, setNeedsTap] = useState(false), [retry, setRetry] = useState(0);
-  const [volume, setVolume] = useState(() => Number(localStorage.getItem("cx-volume") ?? 80));
   const volumeRef = useRef(volume); volumeRef.current = volume;
+  const captionsRef=useRef(captions);captionsRef.current=captions;
   const sync = (force = false) => {
     const p = player.current, { playback: s, offset, connected } = latest.current;
     if (!ready.current || !p) return;
@@ -87,7 +87,7 @@ export function Player({ playback, muted, offset, connected, onEnded }: {
       if (!alive) return;
       player.current = new window.YT.Player(mount, {
         videoId: latest.current.playback.videoId,
-        playerVars: { autoplay: 0, controls: 0, disablekb: 1, rel: 0, playsinline: 1, origin: location.origin },
+        playerVars: { autoplay: 0, controls: 0, disablekb: 1, rel: 0, playsinline: 1, cc_load_policy:captionsRef.current?1:0, origin: location.origin },
         events: {
           onReady: (e: any) => {
             if (!alive) return;
@@ -125,6 +125,7 @@ export function Player({ playback, muted, offset, connected, onEnded }: {
   useEffect(() => { sync(); }, [playback.revision, connected, offset]);
   useEffect(() => { if (ready.current) muted ? player.current.mute() : player.current.unMute(); }, [muted]);
   useEffect(() => { localStorage.setItem("cx-volume", String(volume)); if (ready.current) player.current.setVolume(volume); }, [volume]);
+  useEffect(()=>{if(!ready.current)return;const p=player.current;try{if(captions){p.loadModule?.('captions');p.setOption?.('captions','track',{'languageCode':'vi'});}else p.unloadModule?.('captions');}catch{}},[captions]);
   const feedback = <div className="player-feedback">
     {loading && <div className="player-loading" role="status">Đang chuẩn bị màn chiếu…</div>}
     {needsTap && !error && <div className="player-error"><button onClick={() => { blocked.current = false; setNeedsTap(false); sync(true); }}>Chạm để bắt đầu</button></div>}
@@ -134,6 +135,6 @@ export function Player({ playback, muted, offset, connected, onEnded }: {
   return <>
     <div ref={root} className="youtube-mount" />
     {feedbackTarget ? createPortal(feedback, feedbackTarget) : feedback}
-    <label className="local-volume">Âm lượng của bạn <input aria-label="Âm lượng của bạn" type="range" min="0" max="100" value={volume} onChange={e => setVolume(Number(e.target.value))} /></label>
+
   </>;
 }

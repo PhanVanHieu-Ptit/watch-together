@@ -1,7 +1,14 @@
 import { youtubeId as parseYoutube } from "../shared/youtube.js";
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { io, Socket } from "socket.io-client";
 import {
+  Clapperboard,
+  Copy,
+  Eye,
+  EyeOff,
+  Maximize2,
+  MoreHorizontal,
+  Wallet,
   ArrowUp,
   ArrowUpRight,
   ChevronDown,
@@ -29,10 +36,18 @@ import {
   X,
 } from "lucide-react";
 import type { Room } from "./types";
+import { AddVideoForm } from "./AddVideoForm";
+import { ProfileForm, type AccountProfile } from "./ProfileForm";
+import { EntryCard } from "./EntryCard";
+import { CinemaHud, type CameraView } from "./CinemaHud";
+import { ambientPeople } from "./theater/ambience";
 import { Theater } from "./Theater";
 import { Player } from "./Player";
 import { SEATS, seatLabel } from "./seats";
 import "./style.css";
+import "./ui.css";
+import "./reference.css";
+import "./cinema-hud.css";
 const localId = () =>
   globalThis.crypto?.randomUUID?.() ||
   Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -119,6 +134,9 @@ export default function App() {
     [notice, setNotice] = useState(""),
     [offset, setOffset] = useState(0),
     [help, setHelp] = useState(false);
+  const [profile,setProfile] = useState<AccountProfile|null>(null);
+  const [account,setAccount] = useState<AccountProfile|null>(null);
+  const selectAfterJoin=useRef(false);
   const [adding, setAdding] = useState(false);
   const [privateRoom, setPrivateRoom] = useState(false);
   const [roomName, setRoomName] = useState("");
@@ -127,10 +145,21 @@ export default function App() {
   const roomId = useRef(new URLSearchParams(location.search).get("room") || "community");
   const [unread, setUnread] = useState(0);
   const nearBottom = useRef(true), lastMessage = useRef<string | null>(null);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(() => localStorage.getItem('cx-muted') !== '0');
+  const [volume,setVolume] = useState(() => Math.max(0,Math.min(100,Number(localStorage.getItem('cx-volume')||80))));
+  const [captions,setCaptions] = useState(() => localStorage.getItem('cx-captions')==='1');
+  const [laser,setLaser] = useState(true);
+  const [hudHidden,setHudHidden] = useState(() => localStorage.getItem('wetube-hud-hidden')==='1');
+  const [dockCollapsed,setDockCollapsed] = useState(() => localStorage.getItem('wetube-dock-collapsed')==='1');
+  const [commerce,setCommerce] = useState<'support'|'wallet'|'post'|null>(null);
+  const [now,setNow] = useState(Date.now());
+  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[]);
+  useEffect(()=>{localStorage.setItem('cx-muted',muted?'1':'0');localStorage.setItem('cx-volume',String(volume));localStorage.setItem('cx-captions',captions?'1':'0');localStorage.setItem('wetube-hud-hidden',hudHidden?'1':'0');localStorage.setItem('wetube-dock-collapsed',dockCollapsed?'1':'0');},[muted,volume,captions,hudHidden,dockCollapsed]);
+  const bots=useMemo(()=>ambientPeople(room.participants,now,roomId.current==='community'),[room.participants,now]);
+  const theaterPeople=useMemo(()=>[...room.participants,...bots],[room.participants,bots]);
   const [appearance, setAppearance] = useState(false);
-  const [view, setView] = useState<"overview" | "seat">("overview");
-  const [quality, setQuality] = useState<"high" | "smooth">("smooth");
+  const [view, setView] = useState<CameraView>("overview");
+  const [quality, setQuality] = useState<"high" | "smooth">(() => matchMedia("(max-width:720px)").matches ? "smooth" : "high");
   const [focusedSeat, setFocusedSeat] = useState(0);
   const socketCleanup = useRef<() => void>(() => {});
   const socket = useRef<Socket | null>(null),
@@ -169,24 +198,26 @@ export default function App() {
     return () => {viewport?.removeEventListener("resize", resize); viewport?.removeEventListener("scroll", resize); window.removeEventListener("resize", resize);};
   }, []);
   useEffect(() => {
-    const dialogOpen = seats || add || help;
+    const dialogOpen = seats || add || help || !!commerce || !!profile;
     const selector = dialogOpen ? ".modal" : mode === "welcome" ? ".welcome-card" : panel ? ".side-panel" : null;
     if (!selector) return;
     const target = document.querySelector<HTMLElement>(selector);
     if (!target) return;
     const previous = document.activeElement as HTMLElement | null;
-    const backgrounds = selector === ".side-panel" ? [".header", ".cinema"] : [".header", "main", ...(dialogOpen ? [".welcome-card"] : [])];
+    const backgrounds = selector === ".side-panel" ? [] : [".header", "main", ...(dialogOpen ? [".welcome-card"] : [])];
     const elements = backgrounds.flatMap(q => Array.from(document.querySelectorAll<HTMLElement>(q)));
     elements.forEach(el => el.inert = true);
     const focusable = () => Array.from(target.querySelectorAll<HTMLElement>("button,input,select,a[href],[tabindex]"))
       .filter(el => el.tabIndex >= 0 && !el.matches(":disabled") && el.getClientRects().length > 0);
-    focusable()[0]?.focus();
+    if (mode === "welcome" && !dialogOpen) target.focus(); else focusable()[0]?.focus();
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape" && mode !== "welcome") { e.preventDefault();
-        if (dialogOpen) {setSeats(false); setAdd(false); setHelp(false); setAppearance(false);}
+        if (dialogOpen) {setSeats(false); setAdd(false); setHelp(false); setAppearance(false);setCommerce(null);
+              if(profile){if(!profile.configured){void fetch('/api/auth/logout',{method:'POST'});setAccount(null);}setProfile(null);}}
         else setPanel(false);
-      } else if (e.key === "Escape" && dialogOpen) {setSeats(false); setAdd(false); setHelp(false); setAppearance(false);}
-      if (e.key === "Tab") {
+      } else if (e.key === "Escape" && dialogOpen) {setSeats(false); setAdd(false); setHelp(false); setAppearance(false);setCommerce(null);
+              if(profile){if(!profile.configured){void fetch('/api/auth/logout',{method:'POST'});setAccount(null);}setProfile(null);}}
+      if (e.key === "Tab" && selector !== ".side-panel") {
         const items = focusable(), first = items[0], last = items.at(-1);
         if ((e.shiftKey && document.activeElement === first) || (!e.shiftKey && document.activeElement === last) || !target.contains(document.activeElement)) {
           e.preventDefault(); (e.shiftKey ? last : first)?.focus();
@@ -195,9 +226,9 @@ export default function App() {
     };
     document.addEventListener("keydown", key);
     return () => {document.removeEventListener("keydown", key); elements.forEach(el => el.inert = false); if (previous?.isConnected) previous.focus();};
-  }, [seats, add, help, panel, mode]);
-  const join = () => {
-    if (!name.trim()) {
+  }, [seats, add, help, panel, mode, commerce,profile]);
+  const join = (entryName = name, createPrivate = privateRoom) => {
+    if (!entryName.trim()) {
       notify("Nhập tên để cả hội nhận ra bạn nhé.");
       return;
     }
@@ -225,8 +256,8 @@ export default function App() {
     };
     s.on("connect", () => {
       generation++; revision = -1; bestRtt = Infinity;
-      const enter = () => s.emit("join", { name, avatar, roomId: roomId.current, password, token: sessionStorage.getItem("cx-session:"+roomId.current) });
-      if (privateRoom && !hasJoined && roomId.current === "community") {
+      const enter = () => s.emit("join", { name:entryName, avatar, roomId: roomId.current, password, token: sessionStorage.getItem("cx-session:"+roomId.current) });
+      if (createPrivate && !hasJoined && roomId.current === "community") {
         s.timeout(5000).emit("room:create", {name:roomName, maxMembers:capacity, password}, (err: Error | null, result: {ok:boolean; roomId:string}) => {
           if (err || !result?.ok) {setJoining(false); notify("Không tạo được phòng. Hãy thử lại."); return;}
           roomId.current = result.roomId;
@@ -253,7 +284,8 @@ export default function App() {
       setMode("live");
       setConnected(true);
       setJoining(false);
-      localStorage.setItem("cx-name", name);
+      if(selectAfterJoin.current){selectAfterJoin.current=false;setSeats(true);}
+      localStorage.setItem("cx-name", entryName);
       localStorage.setItem("cx-avatar", avatar);
     });
     s.on("notice", (t: string) => {
@@ -268,6 +300,15 @@ export default function App() {
       notify("Chưa kết nối được backend. Chạy npm run dev hoặc khám phá demo.");
     });
   };
+  useEffect(() => {
+    const abort = new AbortController();
+    void fetch('/api/auth/me', {signal:abort.signal, credentials:'same-origin'})
+      .then(response => response.ok ? response.json() : null)
+      .then(result => {if (!abort.signal.aborted && result?.user) {setName(result.user.name);setAccount(result.user);if(!result.user.configured)setProfile(result.user);else join(result.user.name);}})
+      .catch(() => {});
+    return () => abort.abort();
+  }, []);
+
   const enterDemo = () => {
     socketCleanup.current(); socket.current?.disconnect();
     setRoom({
@@ -300,6 +341,8 @@ export default function App() {
     }
     done?.(true);
     setRoom((r) => {
+      if (event === "emote") return {...r,participants:r.participants.map(p=>p.id===myId?{...p,emote:{kind:data.kind,until:Date.now()+8000}}:p)};
+      if (event === "stage") return {...r,participants:r.participants.map(p=>p.id===myId?{...p,stageSpot:data.spot,stageUntil:Date.now()+60000}:p)};
       if (event === "appearance") return { ...r, participants: r.participants.map(p => p.id === myId ? {...p, ...data} : p) };
       if (event === "seat") {
         if (r.participants.some((p) => p.id !== myId && p.seat === data)) {
@@ -407,9 +450,9 @@ export default function App() {
       setNotice("WebGL không khả dụng. Đã chuyển sang rạp 2D.");
     }, []);
   const seatGrid = (
-    <div className="seat-grid" role="group" aria-label="100 ghế A1 đến J10; phím mũi tên di chuyển, Enter đặt ghế">
+    <div className="seat-grid reference-seat-grid" role="group" aria-label="100 ghế A1 đến J10; phím mũi tên di chuyển, Enter đặt ghế">
       {Array.from({ length: 100 }, (_, i) => {
-        const p = room.participants.find((p) => p.seat === i);
+        const p = theaterPeople.find((p) => p.seat === i);
         return (
           <button
             key={i}
@@ -422,39 +465,39 @@ export default function App() {
               if (next !== null) { e.preventDefault(); setFocusedSeat(next); e.currentTarget.parentElement?.querySelector<HTMLButtonElement>(`[data-seat-id="${next}"]`)?.focus(); }
             }}
             title={
-              p ? seatLabel(i) + " · " + p.name + (p.id === myId ? " · Ghế của bạn" : " · Đang có người") : "Chọn ghế " + seatLabel(i) + " · Cụm " + SEATS[i].size + " chỗ"
+              p ? seatLabel(i) + " · " + p.name + (p.id === myId ? " · Ghế của bạn" : p.isBot ? " · Bot · Bấm để ngồi và bot nhường ghế" : " · Đang có người") : "Chọn ghế " + seatLabel(i) + " · Cụm " + SEATS[i].size + " chỗ"
             }
             aria-label={
-              p ? seatLabel(i) + " · " + p.name + (p.id === myId ? " · Ghế của bạn" : " · Đang có người") : "Chọn ghế " + seatLabel(i) + " · Cụm " + SEATS[i].size + " chỗ"
+              p ? seatLabel(i) + " · " + p.name + (p.id === myId ? " · Ghế của bạn" : p.isBot ? " · Bot · Bấm để ngồi và bot nhường ghế" : " · Đang có người") : "Chọn ghế " + seatLabel(i) + " · Cụm " + SEATS[i].size + " chỗ"
             }
-            aria-disabled={!!p && p.id !== myId}
+            aria-disabled={!!p && !p.isBot && p.id !== myId}
             className={
-              "seat " + (p?.id === myId ? "mine" : p ? "occupied" : "")
+              "seat " + (p?.id === myId ? "mine" : p?.isBot ? "bot-seat" : p ? "occupied" : "")
             }
-            onClick={() => p && p.id !== myId ? notify("Ghế " + seatLabel(i) + " đã có " + p.name + ". Hãy chọn ghế còn trống nhé.") : action("seat", i)}
+            onClick={() => p && !p.isBot && p.id !== myId ? notify("Ghế " + seatLabel(i) + " đã có " + p.name + ". Hãy chọn ghế còn trống nhé.") : action("seat", i, ok=>{if(ok)setSeats(false);})}
           >
-            <span className="seat-code">{seatLabel(i)}</span>{p ? p.avatar : <Sofa size={14} />}
+            <span className="seat-code">{String(i%10+1).padStart(2,'0')}</span>
           </button>
         );
       })}
     </div>
   );
   return (
-    <div className={"app " + (!panel ? "panel-hidden" : "")}>
+    <div className={"app " + (!panel ? "panel-hidden " : "")+(hudHidden?"hud-hidden":"")}>
       <header className="header">
-        <a className="brand" href="/" aria-label="Cùng Xem">
-          <img src="/favicon.svg" alt="" />
+        <a className="brand" href="/" aria-label="wetube ciné — Trang chủ">
+          <img src="/brand-mark.svg" alt="" />
           <span>
-            Cùng Xem<span className="brand-dot">.</span>
+            wetube ciné<small>VIDEO / NGHE NHẠC / 01</small>
           </span>
-          <span className="beta">BETA</span>
+
         </a>
         <div className="room-nav">
           <span className="live-dot" />
-          <span>{joining ? "Đang kết nối…" : mode === "demo" ? "Rạp demo" : connected ? "Đã kết nối" : mode === "live" ? "Mất kết nối · đang thử lại" : "Rạp chung"}</span>
+          <span>{joining ? "Đang kết nối…" : mode === "demo" ? "Rạp demo" : connected ? "Đã kết nối" : mode === "live" ? "Mất kết nối · đang thử lại" : "Rạp đang mở"}</span>
           <ChevronDown size={14} />
           <i />
-          <span className="public-label">{room.participants.length} / {room.maxMembers || 100} ghế</span>
+          <Users size={14}/><span className="public-label"><span>{mode === 'welcome'?'Chưa vào rạp':`${room.participants.length} đang online`}</span><small title={`Bao gồm ${bots.length} bot minh họa tự đổi ghế`}>{theaterPeople.filter(p=>p.seat!=null).length} / {room.maxMembers || 100} ghế</small></span>
         </div>
         <div className="header-actions">
           <button
@@ -471,41 +514,33 @@ export default function App() {
               }
             }}
           >
-            <Link size={15} />
+            <Copy size={18} />
             <span>Mời bạn bè</span>
           </button>
-          <button className="header-icon" aria-label={muted ? "Bật âm thanh" : "Tắt âm thanh"} aria-pressed={muted} onClick={() => setMuted(!muted)}>{muted ? <VolumeX size={19} /> : <Volume2 size={19} />}</button>
-          <button className="header-icon" aria-label="Cài đặt rạp" onClick={() => setHelp(true)}><Settings2 size={19} /></button>
-          <button
-            className="profile"
-            onClick={() => setHelp(true)}
-            aria-label="Thông tin của bạn"
-          >
-            {avatar}
-          </button>
+          <button className="header-icon fullscreen-button hud-optional" aria-label="Toàn màn hình trình duyệt" onClick={()=>{if(document.fullscreenElement)void document.exitFullscreen();else void document.documentElement.requestFullscreen?.().catch(()=>notify('Trình duyệt chưa hỗ trợ toàn màn hình.'));}}><Maximize2 size={18}/></button>
+          <button className="header-icon quality-button hud-optional" aria-label={quality==='high'?'Độ nét cao — bấm để chuyển sang mượt':'Chế độ mượt — bấm để tăng độ nét'} onClick={()=>setQuality(quality==='high'?'smooth':'high')}><Settings2 size={18}/></button>
+          <button className="header-icon hud-toggle" aria-label={hudHidden?'Hiện lại các nút':'Ẩn các nút trên màn'} aria-pressed={hudHidden} onClick={()=>setHudHidden(!hudHidden)}>{hudHidden?<Eye size={18}/>:<EyeOff size={18}/>}</button>
+          <button className="header-icon mobile-more hud-optional" aria-label="Cài đặt rạp" onClick={()=>setHelp(true)}><MoreHorizontal size={20}/></button>
+          {mode!=='welcome'&&<button className="profile" aria-label="Thông tin của bạn" onClick={()=>{if(account)setProfile({...account,...me});else{setAppearance(true);setHelp(true);}}}>{name.slice(0,1).toUpperCase()}</button>}
         </div>
       </header>
       <main>
         <section className="cinema">
-          <div className="cinema-top">
+          <div className="cinema-top hud-optional">
             <div>
-              <span className="eyebrow">MỘT CHỖ NGỒI. CẢ HỘI BẠN.</span>
+              <span className="eyebrow">MỘT CHIẾC RẠP. CẢ HỘI CÙNG XEM.</span>
               <h1>
-                Tối nay, cùng xem nhé<span> ✦</span>
+                Chọn một chỗ, xem cùng nhau.
               </h1>
+              <p className="intro-description">Ghế đơn, ghế đôi, ghế ba — chỗ của bạn ở đâu?</p>
             </div>
-            <button className="mode-button" onClick={() => setTwoD(!twoD)}>
+            <button className="mode-button" aria-pressed={twoD} aria-label={twoD ? "Chuyển sang không gian 3D" : "Chuyển sang chế độ 2D"} onClick={() => setTwoD(!twoD)}>
               <LayoutGrid size={14} />
               {twoD ? "Chế độ 2D" : "Không gian 3D"}
               <ChevronDown size={13} />
             </button>
           </div>
           <div className={"stage " + (!twoD ? "immersive-stage" : "flat-stage")}>
-            <div className="scene-controls">
-              <button aria-pressed={view === "overview"} onClick={() => setView("overview")}>Tổng quan</button>
-              <button disabled={me?.seat == null || twoD} aria-pressed={view === "seat"} onClick={() => setView("seat")}>Từ ghế của tôi</button>
-              <label>Chất lượng <select value={quality} onChange={e => setQuality(e.target.value as "high" | "smooth")}><option value="smooth">Mượt</option><option value="high">Cao</option></select></label>
-            </div>
             <div className="screen-caption">
               <span className="tiny-pill">
                 <span /> ĐANG CHIẾU
@@ -515,28 +550,21 @@ export default function App() {
             </div>
             <div className="screen-frame" ref={playerWrap}>
               <div className="projection" />
-              {mode !== "welcome" ? (
+              {mode !== "welcome" && !!room.playback.videoId ? (
                 <Player
                   onEnded={() => { if (mode === "live") action("ended", {videoId: room.playback.videoId}); }}
                   muted={muted}
+                  volume={volume}
+                  captions={captions}
                   playback={room.playback}
                   connected={mode === "demo" || connected}
                   offset={mode === "demo" ? 0 : offset}
                 />
               ) : (
-                <div className="screen-art">
-                  <div className="art-sun" />
-                  <div className="art-orbit orbit-one" />
-                  <div className="art-orbit orbit-two" />
-                  <div className="art-mountain back" />
-                  <div className="art-mountain front" />
-                  <div className="art-water" />
-                  <div className="screen-art-copy">
-                    <span>CÙNG NHAU, Ở ĐÂY.</span>
-                    <strong>Chậm lại một chút.</strong>
-                    <p>Để một giai điệu kết nối chúng mình.</p>
-                  </div>
-                  <span className="art-stamp">CÙNG XEM ORIGINAL SPACE</span>
+                <div className="reference-screen">
+                  <div className="reference-screen-top"><span>WETUBE CINÉ / PHÒNG 01</span><span>100 CHỖ · CÙNG MỘT MÀN HÌNH</span></div>
+                  <div className="reference-screen-copy"><Clapperboard size={76} strokeWidth={1}/><span>MỘT CHIẾC RẠP. CẢ HỘI CÙNG XEM.</span><h2>{room.nextAt?'Bình chọn kết thúc':'Chỗ này còn trống.'}<br/><i>{room.nextAt?`sau ${Math.max(0,Math.ceil((room.nextAt-now-offset)/1000))} giây`:'Chờ bạn và một video hay.'}</i></h2><p>{room.nextAt?'Mở Hàng chờ và bình chọn video cả hội cùng xem.':'Chọn một chỗ ngồi · Gửi video bạn thích · Bình chọn cùng nhau'}</p></div>
+                  <div className="reference-screen-bottom"><span>KHÔNG GIAN CỦA CHÚNG MÌNH</span><span>EST. 2026</span></div>
                 </div>
               )}
             </div>
@@ -582,7 +610,12 @@ export default function App() {
                   view={view}
                   quality={quality}
                   screen={playerWrap}
-                  people={room.participants}
+                  people={theaterPeople}
+                  messages={room.messages}
+                  energetic={room.playback.energetic}
+                  bpm={room.playback.bpm}
+                  laser={laser}
+                  onStage={spot=>action("stage",{spot})}
                   myId={myId}
                   onSeat={(i) => action("seat", i)}
                   onFail={fail}
@@ -623,91 +656,36 @@ export default function App() {
               <span>Về rạp này</span>
             </button>
           </div>
-          <div className="dock" role="toolbar" aria-label="Điều khiển rạp">
-            <button onClick={() => setAdd(true)} aria-label="Gửi video"><Plus size={19} /><span>Gửi video</span></button>
-            <button
-              disabled={!canControl}
-              onClick={togglePlay}
-              aria-label={(room.playback.status === "playing") ? "Tạm dừng" : "Phát"}
-              className="play-button"
-            >
-              {(room.playback.status === "playing") ? <Pause size={19} /> : <Play size={19} />}
-            </button>
-            <button disabled={!canControl} onClick={() => action("next")} title="Chủ rạp chuyển bài">
-              <SkipForward size={18} />
-            </button>
-            <form onSubmit={e => { e.preventDefault(); const value = new FormData(e.currentTarget).get("seconds"); action("playback", { type: "seek", position: Number(value) }); }}>
-              <input name="seconds" aria-label="Vị trí tua (giây)" type="number" min="0" max="86400" step="0.1" defaultValue="0" style={{width: 70}} disabled={!canControl} />
-              <button disabled={!canControl} type="submit">Tua</button>
-            </form>
-            <div className="dock-divider" />
-            <button
-              aria-label="Chỗ ngồi"
-              onClick={() => setSeats(true)}
-              className={seats ? "selected" : ""}
-            >
-              <Sofa size={19} />
-              <span>Chỗ ngồi</span>
-            </button>
-            <button
-              aria-label="Hàng chờ"
-              onClick={() => {
-                setTab("queue");
-                setPanel(true);
-              }}
-            >
-              <Music2 size={19} />
-              <span>Hàng chờ</span>
-              <small>{room.queue.length}</small>
-            </button>
-            <button
-              aria-label="Trò chuyện"
-              className={panel && tab === "chat" ? "selected" : ""}
-              onClick={() => {
-                if (panel && tab === "chat") setPanel(false);
-                else {
-                  setTab("chat");
-                  setPanel(true);
-                }
-              }}
-            >
-              <MessageCircle size={19} />
-              <span>Trò chuyện</span>{unread > 0 && <small aria-label="Tin chưa đọc">{unread}</small>}
-            </button>
-            <div className="dock-divider" />
-            <button
-              onClick={() => {
-                if (document.fullscreenElement) document.exitFullscreen().catch(() => notify("Không thể thoát toàn màn hình."));
-                else
-                  document.documentElement
-                    .requestFullscreen?.()
-                    .catch(() =>
-                      notify("Trình duyệt chưa hỗ trợ toàn màn hình."),
-                    );
-              }}
-              aria-label="Toàn màn hình rạp"
-            >
-              <Expand size={18} />
-            </button>
-            <button onClick={() => { setAppearance(true); setHelp(true); }} aria-label="Ngoại hình"><Palette size={19} /><span>Ngoại hình</span></button>
-          </div>
+          <CinemaHud active={mode!=='welcome'} view={view} setView={setView} hasSeat={me?.seat!=null} seatLabel={me?.seat!=null?seatLabel(me.seat):''}
+            hidden={hudHidden} collapsed={dockCollapsed} setCollapsed={setDockCollapsed} laser={laser} setLaser={setLaser}
+            muted={muted} setMuted={setMuted} volume={volume} setVolume={setVolume} captions={captions} setCaptions={setCaptions}
+            tab={tab} panel={panel} openPanel={target=>{setTab(target);setPanel(!(panel&&tab===target));}} queueCount={room.queue.length} unread={unread}
+            text={text} setText={setText} send={()=>{if(text.trim()&&action('chat',text.trim()))setText('');}} ready={ready} canChat={room.permissions?.chat!==false||room.participants[0]?.id===myId}
+            openSeats={()=>setSeats(true)} openAdd={()=>setAdd(true)} openAppearance={()=>{if(account)setProfile({...account,...me});else{setAppearance(true);setHelp(true);}}} openPrivate={()=>setHelp(true)} openCommerce={setCommerce}
+            emote={kind=>action('emote',{kind})} notify={notify}/>
+
         </section>
-        <aside role="dialog" aria-modal={panel || undefined} aria-label="Trò chuyện và hàng chờ" className={"side-panel " + (panel ? "open" : "")}>
+        {panel && <div className="panel-backdrop" onClick={() => setPanel(false)} aria-hidden="true" />}
+        <aside role="dialog" aria-modal={false} aria-label="Trò chuyện và hàng chờ" className={"side-panel " + (panel ? "open" : "")}>
+          <div className="reference-drawer-head"><div><span className="eyebrow">{tab==='queue'?'CÙNG CHỌN, CÙNG XEM':`${room.participants.length} NGƯỜI ĐANG Ở ĐÂY`}</span><h2>{tab==='queue'?'Danh sách chờ':tab==='people'?'Thành viên':'Trò chuyện'}</h2></div><button aria-label="Đóng bảng" onClick={()=>setPanel(false)}><X size={19}/></button></div>
           <div className="panel-tabs">
             <button
+              aria-pressed={tab === "chat"}
               className={tab === "chat" ? "active" : ""}
               onClick={() => setTab("chat")}
             >
               Trò chuyện <span>{room.messages.length}</span>
             </button>
             <button
+              aria-pressed={tab === "queue"}
               className={tab === "queue" ? "active" : ""}
               onClick={() => setTab("queue")}
             >
               Hàng chờ <span>{room.queue.length}</span>
             </button>
             <button
-              className="panel-people"
+              className={"panel-people " + (tab === "people" ? "active" : "")}
+              aria-pressed={tab === "people"}
               onClick={() => setTab("people")}
               aria-label="Người tham gia"
             >
@@ -746,7 +724,7 @@ export default function App() {
                 <div className="system-message">
                   <Sparkles size={16} />
                   <p>
-                    Chào mừng đến với Cùng Xem!
+                    Chào mừng đến với wetube ciné!
                     <br />
                     <span>Chọn ghế, bật nhạc và kể nhau nghe.</span>
                   </p>
@@ -786,7 +764,7 @@ export default function App() {
               </div>
               <div className="chat-footer">
                 {unread > 0 && <button onClick={() => {nearBottom.current = true; setUnread(0); chatEnd.current?.scrollIntoView({behavior:"smooth"});}}>{unread} tin mới ↓</button>}
-                <div aria-label="Emoji">{["😊", "❤️", "🎉", "👏", "🎶"].map(emoji => <button type="button" key={emoji} aria-label={"Thêm " + emoji} onClick={() => setText(t => (t+emoji).slice(0,500))}>{emoji}</button>)}</div>
+                <div aria-label="Emoji">{["😊", "❤️", "🎉", "👏", "🎶"].map(emoji => <button type="button" key={emoji} aria-label={"Thêm " + emoji} onClick={() => setText(t => Array.from(t+emoji).slice(0,160).join(''))}>{emoji}</button>)}</div>
                 <div className="chat-note">
                   <span />{" "}
                   {mode === "demo"
@@ -802,17 +780,17 @@ export default function App() {
                 >
                   <input
                     value={text}
-                    maxLength={500}
+                    maxLength={160}
                     onChange={(e) => setText(e.target.value)}
                     placeholder="Nói gì đó với cả rạp..."
                     aria-label="Tin nhắn"
                   />
-                  <button type="submit" aria-label="Gửi tin nhắn">
+                  <button type="submit" disabled={!ready || !text.trim()} aria-label="Gửi tin nhắn">
                     <Send size={17} />
                   </button>
                 </form>
                 <div className="chat-footer-caption">
-                  <span>Enter để gửi · {text.length}/500</span>
+                  <span>Enter để gửi · {Array.from(text).length}/160</span>
                   <span>✧ Những kết nối nhỏ, niềm vui lớn</span>
                 </div>
               </div>
@@ -914,66 +892,7 @@ export default function App() {
           </div>
         </aside>
       </main>
-      {mode === "welcome" && (
-        <div className="welcome-card" role="dialog" aria-modal="true" aria-label="Vào rạp" aria-busy={joining}>
-          <div className="welcome-top">
-            <span className="welcome-spark">✦</span>
-            <span>HẸN NHAU Ở HÀNG GHẾ NÀY</span>
-            <span>01 / 100</span>
-          </div>
-          <h2>Chỗ của bạn còn trống.</h2>
-          <p>Mang theo một cái tên. Phần còn lại, cùng nhau.</p>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              join();
-            }}
-          >
-            <label htmlFor="display-name">MỌI NGƯỜI GỌI BẠN LÀ</label>
-            <div className="name-input">
-              <span>{avatar}</span>
-              <input
-                id="display-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={24}
-                placeholder="Tên của bạn..."
-                autoComplete="nickname"
-              />
-            </div>
-            <div className="avatar-options" aria-label="Chọn avatar">
-              {avatars.map((a) => (
-                <button
-                  type="button"
-                  key={a}
-                  aria-label={"Avatar " + a}
-                  aria-pressed={avatar === a}
-                  className={a === avatar ? "chosen" : ""}
-                  onClick={() => setAvatar(a)}
-                >
-                  {a}
-                </button>
-              ))}
-            </div>
-            {roomId.current === "community" && <label><input type="checkbox" checked={privateRoom} onChange={e => setPrivateRoom(e.target.checked)} /> Tạo phòng riêng</label>}
-            {privateRoom && <>
-              <label>Tên phòng<input required maxLength={60} value={roomName} onChange={e => setRoomName(e.target.value)} /></label>
-              <label>Giới hạn người<input type="number" min={1} max={100} required value={capacity} onChange={e => setCapacity(Number(e.target.value))} /></label>
-            </>}
-            {(privateRoom || roomId.current !== "community") && <label>Mật khẩu phòng (nếu có)<input type="password" maxLength={128} value={password} autoComplete="off" onChange={e => setPassword(e.target.value)} /></label>}
-            <button className="primary join" disabled={joining}>
-              {joining ? "Đang kết nối..." : "Vào rạp cùng mọi người"}
-              <ArrowUpRight size={18} />
-            </button>
-          </form>
-          <button className="demo-link" onClick={enterDemo}>
-            Khám phá demo trước <ChevronRight size={13} />
-          </button>
-          <div className="welcome-foot">
-            <span /> Miễn phí. Không cần tài khoản.
-          </div>
-        </div>
-      )}
+      {mode === "welcome" && <EntryCard roomPasswordRequired={roomId.current !== "community"} roomPassword={password} setRoomPassword={setPassword} joining={joining} onAuthenticated={user => {setAccount(user);setName(user.name);if(!user.configured)setProfile(user);else join(user.name);}} onDemo={enterDemo}/>}
       {notice && (
         <div className="toast" role="status">
           <Info size={17} />
@@ -983,20 +902,21 @@ export default function App() {
           </button>
         </div>
       )}
-      {(seats || add || help) && (
+      {(seats || add || help || commerce || profile) && (
         <div
           className="modal-backdrop"
           onClick={() => {
             setSeats(false);
             setAdd(false);
-            setHelp(false); setAppearance(false);
+            setHelp(false); setAppearance(false);setCommerce(null);
+              if(profile){if(!profile.configured){void fetch('/api/auth/logout',{method:'POST'});setAccount(null);}setProfile(null);}
           }}
         >
           <section
             className="modal"
             role="dialog"
             aria-modal="true"
-            aria-label={seats ? "Chọn ghế" : add ? "Thêm video" : "Về Cùng Xem"}
+            aria-label={seats ? "Chọn ghế" : add ? "Thêm video" : "Về wetube ciné"}
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -1005,17 +925,18 @@ export default function App() {
               onClick={() => {
                 setSeats(false);
                 setAdd(false);
-                setHelp(false); setAppearance(false);
+                setHelp(false); setAppearance(false);setCommerce(null);
+              if(profile){if(!profile.configured){void fetch('/api/auth/logout',{method:'POST'});setAccount(null);}setProfile(null);}
               }}
             >
               <X size={20} />
             </button>
-            {seats ? (
+            {profile ? <ProfileForm user={profile} onSave={user=>{setAccount(user);setName(user.name);setProfile(null);if(mode==='welcome'){selectAfterJoin.current=true;join(user.name);}else{action('appearance',{name:user.name,gender:user.gender,shirtColor:user.shirtColor});}}}/> : commerce ? <div className="commerce-panel"><span className="eyebrow">WETUBE CINÉ / CÙNG NHAU</span><h2>{commerce==='support'?'Một chút ủng hộ, một rạp thật vui.':commerce==='wallet'?'Phần ủng hộ của bạn':'Khoảnh khắc của bạn trên màn ảnh.'}</h2><p>{commerce==='post'?'Chọn ảnh từ máy hoặc điện thoại, viết lời nhắn và chọn thời gian.':'Cảm ơn bạn đã cùng giữ cho chiếc rạp luôn sáng đèn.'}</p><div className="commerce-balance"><span>Phần ủng hộ còn lại</span><strong>0đ</strong></div><p>Rạp chưa mở nhận ủng hộ và chiếu ảnh trả phí.</p><button className="primary" onClick={()=>setCommerce(null)}>Quay lại rạp</button></div> : seats ? (
               <>
-                <span className="eyebrow">TÌM CHỖ CỦA BẠN</span>
-                <h2>Ngồi đâu cũng vui.</h2>
-                <div className="map-screen">MÀN CHIẾU</div>
-                {seatGrid}
+                <span className="eyebrow">WETUBE CINÉ / CÙNG NHAU</span>
+                <h2>Chọn một chỗ thật ưng.</h2><p className="seatmap-subtitle">10 hàng · 100 chỗ · Ghế đơn, ghế đôi và ghế ba. Bạn có thể đổi chỗ bất kỳ lúc nào.</p>
+                <div className="map-screen">MÀN HÌNH CHIẾU</div>
+                <div className="seat-map-scroll" tabIndex={0} role="region" aria-label="Sơ đồ ghế, cuộn ngang để xem tất cả">{seatGrid}</div>
                 <div className="legend">
                   <span>
                     <i /> Còn trống
@@ -1023,100 +944,46 @@ export default function App() {
                   <span>
                     <i className="occupied" /> Đã có người
                   </span>
-                  <span>
-                    <i className="mine" /> Ghế của bạn
-                  </span>
+                  <span><i className="mine" /> Ghế của bạn</span><span><i className="bot-seat"/> Bot · Có thể chọn</span>
                 </div>
                 <p className="queue-tip">
-                  10 hàng A–J, mỗi hàng 10 ghế. Di chuột hoặc giữ để xem số ghế.
+                  10 hàng A–J, mỗi hàng 10 ghế. Chạm ghế trống để chọn; vuốt ngang để xem thêm.
                 </p>
               </>
             ) : add ? (
-              <>
-                <span className="eyebrow">GÓP MỘT GIAI ĐIỆU</span>
-                <h2>Tiếp theo, xem gì?</h2>
-                <form
-                  className="add-form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (!parseYoutube(url)) {
-                      notify("Đường dẫn YouTube chưa hợp lệ.");
-                      return;
-                    }
-                    setAdding(true);
-                    if (!action("queue:add", { url, title }, ok => {
-                      setAdding(false);
-                      if (ok) {setAdd(false); setUrl(""); setTitle(""); setTab("queue"); setPanel(true);}
-                    })) setAdding(false);
-                  }}
-                >
-                  <label>
-                    Đường dẫn YouTube
-                    <input
-                      type="text"
-                      required
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      placeholder="https://www.youtube.com/watch?v=..."
-                    />
-                  </label>
-                  <label>
-                    Tên video demo <span>(YouTube tự cung cấp khi kết nối thật)</span>
-                    <input
-                      disabled={mode === "live"}
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      maxLength={120}
-                      placeholder="Đặt tên để cả hội dễ nhận ra"
-                    />
-                  </label>
-                  <button className="primary" disabled={adding}>
-                    {adding ? "Đang thêm…" : "Thêm vào hàng chờ"} <Plus size={17} />
-                  </button>
-                </form>
-              </>
+              <AddVideoForm preview={async videoUrl=>{
+                if(!parseYoutube(videoUrl))throw Error('Đường dẫn YouTube chưa hợp lệ.');
+                if(mode==='demo')return {youtubeId:parseYoutube(videoUrl)!,title:'Video YouTube · bản xem trước demo',author:'Demo cục bộ'};
+                return await new Promise((resolve,reject)=>socket.current?.timeout(7000).emit('queue:preview',{url:videoUrl},(err:Error|null,result:any)=>{if(err||!result?.ok)reject(Error(result?.error||'Không lấy được thông tin video.'));else resolve(result.video);}));
+              }} add={data=>new Promise(resolve=>{if(!action('queue:add',data,ok=>{if(ok){setAdd(false);setTab('queue');setPanel(true);}resolve(ok);}))resolve(false);})}/>
             ) : (
               <>
                 <span className="eyebrow">{appearance ? "NGOẠI HÌNH CỦA BẠN" : "CÀI ĐẶT RẠP"}</span>
+                {!appearance&&<div className="settings-actions"><button onClick={()=>setQuality(quality==='high'?'smooth':'high')}>Độ nét: {quality==='high'?'Cao':'Mượt'}</button><button onClick={()=>{setAppearance(true);}}>Đổi tên và ngoại hình</button><button onClick={()=>setHudHidden(!hudHidden)}>{hudHidden?'Hiện lại các nút':'Ẩn các nút trên màn'}</button></div>}
                 {appearance && <div className="appearance-controls">
                   <label>Màu áo <input type="color" aria-label="Màu áo" value={me?.shirtColor ?? "#879fbb"} onChange={e => action("appearance", {shirtColor: e.target.value})} /></label>
                   <label>Kiểu ngoại hình <select aria-label="Kiểu ngoại hình" value={me?.bodyStyle ?? "classic"} onChange={e => action("appearance", {bodyStyle: e.target.value})}><option value="classic">Cơ bản</option><option value="tall">Cao</option><option value="broad">Vai rộng</option><option value="cap">Đội mũ</option></select></label>
                 </div>}
                 {appearance && <div className="avatar-options">{avatars.map(a => <button key={a} aria-label={"Chọn " + a} aria-pressed={avatar === a} className={avatar === a ? "chosen" : ""} onClick={() => { setAvatar(a); localStorage.setItem("cx-avatar", a); if (mode === "demo") setRoom(r => ({...r, participants: r.participants.map(p => p.id === myId ? {...p, avatar: a} : p)})); else notify("Đã lưu ngoại hình. Ngoại hình mới được áp dụng khi bạn vào lại rạp."); }}>{a}</button>)}</div>}
-                <button className="mode-button" onClick={() => setTwoD(!twoD)}><LayoutGrid size={18} />{twoD ? "Chuyển sang rạp 3D" : "Chuyển sang rạp 2D"}</button>
+                <button className="mode-button" aria-pressed={twoD} aria-label={twoD ? "Chuyển sang không gian 3D" : "Chuyển sang chế độ 2D"} onClick={() => setTwoD(!twoD)}><LayoutGrid size={18} />{twoD ? "Chuyển sang rạp 3D" : "Chuyển sang rạp 2D"}</button>
                 {mode === "live" && room.participants[0]?.id === myId && room.permissions && <div>{([['chat','Chat'],['addVideo','Thêm video'],['playback','Điều khiển phát']] as const).map(([key,label]) => <label key={key}><input type="checkbox" checked={room.permissions![key]} onChange={e => action("room:permissions", {[key]:e.target.checked})} /> Thành viên: {label}</label>)}</div>}
                 {mode !== "welcome" && <form onSubmit={e => {e.preventDefault(); action("playback", {type:"seek", position:Number(new FormData(e.currentTarget).get("seconds"))});}}>
                   <label>Tua đến giây <input aria-label="Tua trong cài đặt (giây)" name="seconds" type="number" min="0" max="86400" step="0.1" defaultValue="0" disabled={!canControl} /></label>
                   <button disabled={!canControl}>Tua video</button>
                   <button type="button" disabled={!canControl || !room.queue.length} onClick={() => action("next")}>Chuyển bài tiếp theo</button>
                 </form>}
+                {<form className="private-create-form" onSubmit={e=>{e.preventDefault(); const start=()=>{setHelp(false);setMode("welcome");join(name,true);}; if(mode === "live") {socketCleanup.current();const s=socket.current;s?.timeout(2000).emit("room:leave",null,()=>{s.disconnect();start();});}else start();}}><h2>Phòng riêng</h2><label><input type="checkbox" checked={privateRoom} onChange={e=>setPrivateRoom(e.target.checked)}/> Tạo phòng riêng</label>{privateRoom&&<><label>Tên phòng<input required maxLength={60} value={roomName} onChange={e=>setRoomName(e.target.value)}/></label><label>Giới hạn người<input type="number" min={1} max={100} value={capacity} onChange={e=>setCapacity(Number(e.target.value))}/></label></>}<label>Mật khẩu phòng (nếu có)<input type="password" maxLength={128} value={password} onChange={e=>setPassword(e.target.value)}/></label><button className="primary" disabled={!privateRoom}>Vào phòng</button></form>}
                 <h2>Một chiếc rạp, gần nhau hơn.</h2>
                 <p>
                   Rạp công khai 100 ghế. Xem YouTube, nghe nhạc, bình chọn và
                   trò chuyện cùng bạn bè.
                 </p>
-                <div className="info-box">
-                  <strong>
-                    {mode === "demo"
-                      ? "Bạn đang ở chế độ demo"
-                      : mode === "live"
-                        ? "Kết nối backend Socket.IO"
-                        : "Bạn chưa vào rạp"}
-                  </strong>
-                  <p>
-                    {mode === "demo"
-                      ? "Mọi thao tác chỉ diễn ra trong trình duyệt này. Thành viên và tin nhắn ban đầu là dữ liệu minh hoạ."
-                      : "Khi kết nối server, ghế, chat, hàng chờ và trạng thái phát được chia sẻ theo thời gian thực. Trạng thái lưu trong RAM và mất khi server khởi động lại."}
-                  </p>
-                </div>
-                <p className="queue-tip">
-                  YouTube có thể yêu cầu bấm phát lần đầu hoặc chặn video nhúng.
-                  Chủ rạp là người vào đầu tiên. Khi chủ rạp rời đi, quyền chủ phòng chuyển cho người vào sớm nhất còn lại sau tối đa 30 giây.
-                </p>
+                <p className="queue-tip">Chọn ghế để có góc nhìn riêng, gửi video và bình chọn cùng cả rạp. Kéo để xoay góc nhìn; cuộn chuột hoặc dùng hai ngón tay để zoom. Dùng Tương tác để vẫy tay, vỗ tay hoặc nhảy.</p>
                 {mode !== "welcome" && (
                   <button
                     className="primary"
                     onClick={() => {
+                      void fetch("/api/auth/logout", {method:"POST"});
                       socketCleanup.current();
                       const s = socket.current;
                       s?.timeout(2000).emit("room:leave", null, () => s.disconnect());
@@ -1125,7 +992,8 @@ export default function App() {
                       setMode("welcome");
                       setRoom(initial);
                       setMyId("");
-                      setHelp(false); setAppearance(false);
+                      setHelp(false); setAppearance(false);setCommerce(null);
+                      setAccount(null);setProfile(null);
                     }}
                   >
                     Rời rạp

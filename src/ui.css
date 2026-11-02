@@ -1,0 +1,151 @@
+/* Shared interaction and responsive layout rules. Loaded after the theater artwork. */
+:root {
+  --surface: #1b1e1a;
+  --surface-raised: #242820;
+  --muted: #b0b5a9;
+  --border: #edf3df24;
+  --radius: 14px;
+}
+body { line-height: 1.5; }
+button, input, select { font: inherit; }
+button, select { touch-action: manipulation; }
+button { transition: background-color .16s ease, border-color .16s ease, color .16s ease; }
+button:disabled:hover { color: inherit; background-color: transparent; }
+button svg { flex-shrink: 0; }
+input, select { font-size: 16px; }
+.header { border-bottom: 1px solid var(--border); }
+.header-actions { margin-left: auto; }
+.invite { border: 1px solid var(--border); padding: 0 14px; font-size: 12px; }
+.eyebrow { font-size: 10px; line-height: 1.6; letter-spacing: 1.5px; }
+h1 { font-size: clamp(20px, 2.2vw, 30px); letter-spacing: -.8px; line-height: 1.3; margin-top: 6px; }
+.mode-button { border: 1px solid var(--border); padding: 0 12px; font-size: 12px; }
+.scene-controls { justify-content: flex-start; gap: 6px; }
+.scene-controls button, .scene-controls label { font-size: 12px; border-radius: 10px; min-height: 44px; }
+.scene-controls label { display: flex; align-items: center; gap: 8px; }
+.scene-controls select { min-height: 34px; font-size: 12px; padding: 0 6px; }
+.now-playing { background: #191c18ee; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; }
+.now-playing strong { font-size: 14px; }
+.now-playing > div > span { font-size: 12px; }
+.equalizer { flex-shrink: 0; }
+.dock { gap: 4px; padding: 8px; }
+.dock > button { padding: 0 12px; font-size: 12px; }
+.dock .seek-control { padding: 0 8px; gap: 4px; border-left: 1px solid var(--border); }
+.dock .seek-control input { width: 64px !important; font-size: 13px; }
+.dock small { min-width: 18px; padding: 0 4px; font-size: 10px; }
+.panel-backdrop { position: fixed; inset: 0; background: #080b0866; z-index: 14; backdrop-filter: blur(3px); }
+.side-panel { display: none; }
+.side-panel.open { display: flex; }
+.panel-tabs { min-height: 64px; gap: 4px; }
+.panel-tabs > button { font-size: 12px; padding: 0 8px; }
+.panel-tabs > button.active { background: #d8ef820c; }
+.chat-content, .queue-content, .people-content { overscroll-behavior: contain; }
+.message > div { min-width: 0; }
+.message p { font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.message-meta { font-size: 11px; flex-wrap: wrap; }
+.chat-footer form { border: 1px solid var(--border); padding: 4px; }
+.chat-footer form:focus-within, .name-input:focus-within { border-color: var(--accent); }
+.chat-footer form button { color: #202715; background: var(--accent); border-radius: 10px; }
+.chat-footer form button:disabled { background: var(--surface-raised); color: var(--muted); }
+.queue-tip, .room-card p, .person-row small, .queue-item p { font-size: 12px; line-height: 1.6; }
+.queue-item strong { font-size: 13px; }
+.welcome-card { width: min(432px, calc(100vw - 32px)); padding: 32px; }
+.welcome-card h2 { font-size: clamp(24px, 4vw, 30px); line-height: 1.3; letter-spacing: -1px; }
+.welcome-card > p { font-size: 13px; line-height: 1.8; }
+.welcome-top, .welcome-foot { font-size: 11px; }
+.welcome-top { gap: 8px; }
+.welcome-card label { font-size: 12px; }
+.name-input { border: 1px solid var(--border); min-height: 52px; }
+.name-input input { font-size: 16px; min-width: 0; width: 100%; }
+.avatar-options { display: flex; justify-content: space-between; gap: 4px; margin: 16px 0; }
+.avatar-options button { flex: 0 1 48px; min-width: 0; min-height: 44px; }
+.welcome-card form > label:has(input[type=checkbox]) { display: flex; gap: 10px; align-items: center; min-height: 44px; cursor: pointer; }
+.primary { min-height: 48px; font-size: 14px; font-weight: 600; }
+.demo-link { min-height: 44px; font-size: 12px; }
+.modal { padding: 28px; }
+.modal h2 { padding-right: 28px; font-size: 25px; line-height: 1.4; }
+.modal > p, .add-form label { font-size: 13px; line-height: 1.7; }
+.modal-close { top: 12px; right: 12px; border-radius: 12px; }
+.seat-map-scroll { max-width: 100%; overflow-x: auto; padding: 5px 3px 12px; overscroll-behavior-x: contain; }
+.modal .seat-grid { min-width: 510px; grid-template-columns: repeat(6, minmax(44px, 1fr)) 10px repeat(4, minmax(44px, 1fr)); gap: 5px; }
+.modal .seat { min-width: 44px; min-height: 44px; height: 44px; }
+.modal .seat-code { font-size: 10px; }
+.legend { flex-wrap: wrap; font-size: 11px; gap: 12px; }
+.add-form input { min-width: 0; width: 100%; font-size: 16px; }
+.toast { line-height: 1.6; font-size: 13px; z-index: 100; }
+@media (min-width: 761px) {
+  .side-panel { width: min(380px, calc(100vw - 40px)); }
+  .app:has(.side-panel.open) .cinema { margin-right: 0; }
+}
+@media (max-width: 1100px) {
+  .dock .seek-control { display: none; }
+}
+@media (max-width: 760px) {
+  .header { gap: 8px; }
+  .header .room-nav { margin-left: auto; max-width: 116px; font-size: 11px; }
+  .header-actions { margin-left: 0; }
+  .header-actions .header-icon { min-width: 44px; }
+  .invite { width: 44px; min-width: 44px; padding: 0; border: 0; }
+  .invite > span { display: none; }
+  .cinema { padding: 16px 12px calc(176px + env(safe-area-inset-bottom)); }
+  .cinema-top { gap: 10px; align-items: center; }
+  .eyebrow { font-size: 9px; letter-spacing: .8px; }
+  h1 { font-size: 20px; }
+  .mode-button { font-size: 11px; padding: 0 8px; gap: 4px; }
+  .mode-button > svg:last-child { display: none; }
+  .stage { margin-top: 16px; }
+  .scene-controls { gap: 4px; }
+  .scene-controls button, .scene-controls label { font-size: 11px; padding: 4px 8px; }
+  .scene-controls label { margin-left: auto; }
+  .scene-controls select { font-size: 12px; max-width: 65px; }
+  .now-playing { bottom: calc(112px + env(safe-area-inset-bottom)); width: calc(100% - 24px); padding: 10px 12px; }
+  .now-playing strong { font-size: 13px; }
+  .now-playing > div > span { font-size: 11px; }
+  .seat-hint { max-width: 100%; flex-wrap: wrap; justify-content: center; font-size: 11px; gap: 4px; }
+  .seat-hint button { font-size: 11px; }
+  .dock { bottom: calc(24px + env(safe-area-inset-bottom)); width: calc(100% - 24px); max-width: 440px; justify-content: space-around; border-radius: 18px; gap: 0; padding: 6px 4px; }
+  .dock > button { position: relative; flex: 1; min-width: 44px; height: 60px; padding: 5px 2px; flex-direction: column; gap: 4px; }
+  .dock > button > span { display: block; font-size: 9px; line-height: 1.3; white-space: nowrap; }
+  .dock > button[aria-label="Ngoại hình"] { display: none; }
+  .dock small { display: block; position: absolute; top: 1px; right: 4px; background: var(--accent); color: #202715; }
+  .side-panel { top: auto; bottom: 0; height: min(85dvh, calc(var(--visible-height, 100dvh) - 12px)); max-height: none; border-radius: 24px 24px 0 0; }
+  .panel-tabs { min-height: 58px; }
+  .chat-footer { padding: 10px 12px max(12px, env(safe-area-inset-bottom)); }
+  .welcome-card { padding: 24px; }
+  .welcome-card > p { font-size: 13px; }
+  .welcome-top > span:last-child { display: none; }
+  .modal { padding: 24px 16px; border-radius: 20px; }
+  .modal h2 { font-size: 23px; }
+  .modal:has(.seat-grid) { overflow-y: auto; overflow-x: hidden; }
+  .toast { bottom: calc(110px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 360px) {
+  .header .room-nav { display: none; }
+  .header-actions { margin-left: auto; }
+  .welcome-card { padding: 20px; }
+  .scene-controls label { gap: 4px; padding: 4px; }
+}
+@media (max-height: 500px) {
+  .side-panel { top: 8px; bottom: auto; height: calc(var(--visible-height, 100dvh) - 8px); }
+  .dock { bottom: calc(12px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 760px) {
+  .header-actions .header-icon:last-of-type { display: inline-flex; }
+  .side-panel {
+    top: calc(var(--visible-top, 0px) + var(--visible-height, 100dvh) - min(85dvh, calc(var(--visible-height, 100dvh) - 12px)));
+    bottom: auto;
+  }
+}
+.message-meta strong { font-size: 12px; }
+.message-meta time, .message-meta em { font-size: 10px; color: var(--muted); }
+.panel-tabs > button { white-space: nowrap; }
+@media (max-width: 360px) {
+  .panel-tabs { padding: 0 8px; gap: 0; }
+  .panel-tabs > button { font-size: 11px; padding: 0 6px; }
+  .panel-tabs > button > span { display: none; }
+}
+@media (max-height: 500px) {
+  .side-panel { top: calc(var(--visible-top, 0px) + 8px); height: calc(var(--visible-height, 100dvh) - 8px); }
+}
+@media (min-width: 761px) {
+  .panel-backdrop { background: #080b081a; backdrop-filter: none; }
+}

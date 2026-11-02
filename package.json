@@ -7,7 +7,7 @@
     "dev": "concurrently -k \"npm run dev:frontend\" \"npm run dev:backend\"",
     "build": "tsc -b && vite build",
     "start": "node --env-file-if-exists=.env server/index.js",
-    "test": "node --test server/room.test.js",
+    "test": "node --test server/*.test.js",
     "typecheck": "tsc --noEmit",
     "dev:frontend": "vite --host 0.0.0.0 --port 5178",
     "dev:backend": "node --env-file-if-exists=.env --watch server/index.js"

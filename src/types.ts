@@ -29,6 +29,10 @@ export type Chat = {
   createdAt: number;
 };
 export type Room = {
+  hostId?: string | null;
+  persistent?: boolean;
+  playlists?: {id:string;name:string;videos:{youtubeId:string;title:string;energetic?:boolean;bpm?:number}[]}[];
+  game?: {id:string;status:'playing'|'finished';hostId:string;endsAt:number;round:number;answer?:string;correctIds:string[];scores:{userId:string;name:string;points:number}[]};
   roomId?: string; name?: string; maxMembers?: number; expiresAt?: number;
   permissions?: {chat: boolean; addVideo: boolean; playback: boolean};
   skipVote?: {id: string; votes: string[]; threshold: number; expiresAt: number} | null;

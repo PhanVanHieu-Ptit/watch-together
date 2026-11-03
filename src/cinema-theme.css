@@ -1,0 +1,96 @@
+/* Cinema palette: velvet red, charcoal and warm ticket stock. */
+:root {
+  --accent: #f04b45;
+  --purple: #f04b45;
+  --warm: #e9bd83;
+  --muted: #b9aaa6;
+  --border: #f5dfcd26;
+  --surface: #1b1718;
+  --surface-raised: #2b2324;
+  color: #fff3e5;
+  background: #100e10;
+  accent-color: var(--accent);
+}
+.app { background: #100e10; color: #fff3e5; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #ffb9a5; outline-offset: 4px; }
+button { transition: background-color .18s ease, border-color .18s ease, color .18s ease; }
+.brand { background: #241317e8; border-color: #f04b4555; color: #fff3e5; box-shadow: inset 0 3px #e53935; }
+.brand small { color: #dfb8a6; }
+.room-nav, .header-actions button, .scene-controls button, .dock,
+.cinema-camera, .cinema-sound, .cinema-dock, .cinema-quick-chat,
+.app:not(:has(.welcome-card)) .now-playing { background: #191416e8; border-color: var(--border); }
+.header .live-dot { background: #f04b45; box-shadow: 0 0 12px #f04b4555; }
+.header-actions .profile { background: #c92b30; color: #fff3e5; border-color: #ffb7a64d; }
+.cinema-top .eyebrow, .intro-description, .cinema-sound .volume-toggle { color: #d6c0b3; }
+.cinema-top h1 { color: #fff3e5; }
+.cinema-camera button, .cinema-sound>button, .cinema-dock>button,
+.cinema-emote>button, .scene-controls button { color: #e6d5ca; }
+.cinema-camera button.active, .cinema-camera button:hover,
+.cinema-sound>button:hover, .cinema-dock>button.active,
+.cinema-dock button:hover, .scene-controls button[aria-pressed=true],
+.dock>button.selected, .panel-tabs>button.active { background: #e5393526; color: #ffaba0; }
+.cinema-dock>.dock-collapse { color: #ffaba0; background: #e539351a; border-color: #f04b4544; }
+.cinema-private { background: linear-gradient(135deg, #bd252c, #791820); color: #fff3e5; border-color: #ff9b8870; box-shadow: 0 6px 24px #8e152d33, inset 0 1px #fff2; }
+.cinema-dock b, .dock small { color: #fff; background: #ba242c; }
+.cinema-volume, .cinema-emote-menu, .cinema-emoji-picker,
+.side-panel.open, .modal { background: #1b1618f5; border-color: var(--border); color: #fff3e5; }
+.cinema-quick-chat input, .message p, .name-input input { color: #fff3e5; }
+.cinema-quick-chat input::placeholder, .entry-input input::placeholder { color: #b7a7a2; }
+.cinema-quick-chat small, .cinema-emoji-picker header span { color: var(--muted); }
+.cinema-quick-chat:focus-within, .entry-input:focus-within { border-color: #f04b45; }
+.cinema-quick-chat>button { background: #e5393526; color: #ffb2a6; }
+.cinema-quick-chat>.emoji-trigger { color: #ddc6ba; }
+.avatar-label { color: #fff3e5; }
+.avatar-name { background: #201619e8; border-color: var(--border); }
+.avatar-bubble { background: #fff0ddf5; color: #3c2225; }
+.primary, .dock .play-button, .chat-footer form button,
+.welcome-card.reference-entry .primary.join {
+  background: #c92b30; color: #fff8ed; border: 1px solid #f6756970;
+  box-shadow: 0 4px 16px #a3162426; border-radius: 7px;
+}
+.primary:hover, .welcome-card.reference-entry .primary.join:hover { background: #e0393e; color: #fff; }
+.primary:disabled, .welcome-card.reference-entry .primary.join:disabled { background: #6c3036; color: #dac2be; box-shadow: none; }
+.entry-overlay { background: #10090d70; }
+.welcome-card.reference-entry {
+  background: linear-gradient(160deg, #2b191c, #191416 65%);
+  border: 1px solid #ead0b847; border-top: 4px solid #d93036;
+  border-radius: 10px; box-shadow: 0 28px 100px #000a;
+}
+.reference-entry .accent-text { color: #ffaaa0; letter-spacing: 2px; }
+.reference-entry h2 { color: #fff3e5; font-weight: 700; }
+.reference-entry h2 i { color: #ff8d80; }
+.reference-entry>p, .reference-entry .entry-policy, .reference-entry .entry-consent,
+.entry-note, .entry-explanation { color: #cbb8af; }
+.reference-entry form>label { color: #f4e2d6; }
+.entry-tabs { border-color: #ead0b826; }
+.entry-tabs button { color: #c6ada5; }
+.entry-tabs .active { color: #ffaaa0; }
+.entry-tabs .active:after { background: #e53935; height: 3px; }
+.entry-input, .name-input, .chat-footer form,
+.private-create-form>label>input:not([type=checkbox]) { background: #110f11; border-color: #ead0b830; }
+.reference-entry .entry-input input, .entry-input button { color: #fff3e5; }
+.entry-input>svg { color: #bfa49b; }
+.entry-note { border-top: 1px dashed #ead0b84d; padding-top: 20px; }
+.entry-note svg { color: #f07867; }
+.entry-room { background: #f3d6ae0b; color: #f2d2a7; border-color: #e9bd8350; border-radius: 7px; }
+.entry-room:hover { background: #f3d6ae18; }
+.entry-explanation, .room-card, .private-card, .info-box { background: #e5393508; border-color: var(--border); }
+.entry-error, .player-error { color: #ffb2a6; }
+.reference-screen { color: #fff3e5; background: radial-gradient(ellipse at 50% 30%, #6a252c, transparent 65%), linear-gradient(135deg, #30161d, #140f14 80%); }
+.reference-screen:before { background-image: linear-gradient(#f1c79e0a 1px, transparent 1px), linear-gradient(90deg, #f1c79e0a 1px, transparent 1px); }
+.reference-screen-top, .reference-screen-bottom { color: #e4bdaa; border-color: #ead0b833; }
+.reference-screen-copy>svg { color: #ffe3bd; background: #f04b4512; border-color: #f0957655; }
+.reference-screen-copy>span, .reference-screen-copy p { color: #e1b5a5; }
+.reference-screen-copy h2 i { color: #ff9c8c; }
+.seat { background: #6a202c; color: #f3c9bd; border-color: #e3606144; }
+.seat.mine { background: #c92b30; color: #fff; border-color: #ffb2a6; }
+.seat.occupied { background: #493539; color: #d3b6ad; border-color: #9d737b66; }
+.avatar-options button.chosen { background: #e5393526; border-color: var(--accent); }
+.toast { background: #2b191e; color: #fff3e5; border-color: #f04b4555; }
+.player-loading { background: #191416; color: #f04b45; }
+@media (prefers-reduced-motion: reduce) { button { transition: none; } }
+.settings-actions button, .commerce-options button { background: #f5dfcd08; border-color: var(--border); color: #f4e2d6; }
+.profile-form>p, .add-video-reference>p, .profile-form legend,
+.profile-segmented button, .registration-limit, .character-preview>span { color: var(--muted); }
+.profile-segmented button.selected { background: #e539351a; color: #ffaaa0; border-color: #f04b4566; }
+.profile-colors button.selected { border-color: #fff3e5; box-shadow: 0 0 0 3px #f04b4533; }

@@ -39,7 +39,7 @@ npm start
 
 ## Socket events
 
-Client kết nối cùng origin. Không có API duyệt danh sách phòng riêng.
+Client kết nối cùng origin. Không có API công khai duyệt phòng riêng; `/api/rooms/mine` chỉ liệt kê phòng cố định của chính tài khoản đăng nhập.
 
 | Event client → server | Payload / hành vi |
 | --- | --- |
@@ -78,7 +78,7 @@ Các mutation trừ `join` trả ack `{ok:boolean}` và gửi `notice` khi từ 
 
 ## Phòng hết hạn, chủ rời đi và giữ dữ liệu
 
-- Phòng riêng hết hạn sau **24 giờ kể từ khi tạo**, kể cả đang hoạt động; phòng trống xóa sau **30 phút**, kể cả tạo nhưng chưa ai vào. Quét mỗi giây theo cấu hình mặc định.
+- Phòng riêng tạm thời hết hạn sau **24 giờ kể từ khi tạo**, kể cả đang hoạt động; phòng trống xóa sau **30 phút**, kể cả tạo nhưng chưa ai vào. Quét mỗi giây theo cấu hình mặc định.
 - Mất mạng/đóng tab: giữ phiên, ghế và quyền chủ trong **30 giây**. Sau đó xóa thành viên, chuyển chủ cho người vào sớm nhất còn lại. Thành viên đã được cấp quyền playback vẫn có thể điều khiển trong thời gian chờ.
 - Bấm Rời rạp: gửi leave, chuyển chủ ngay khi server nhận, rồi ngắt socket; nếu không tới được server thì áp dụng grace disconnect.
 - Phòng trống bắt đầu tính sau khi phiên cuối rời/hết grace. Rạp cộng đồng không hết hạn nhưng state vẫn chỉ nằm trong RAM.
@@ -117,7 +117,7 @@ Xem [báo cáo bàn giao](artifacts/handoff/REPORT.md) cho bằng chứng và ph
 
 ## Đối chiếu choigivui.com (02/11/2026)
 
-Đã thay khung giao diện theo website tham chiếu, thêm đăng ký/đăng nhập và phục hồi phiên bằng cookie HttpOnly. Tài khoản được lưu tại `ACCOUNTS_FILE` (mặc định `data/accounts.json`); mật khẩu băm scrypt với salt. Phiên đăng nhập trong RAM hết hạn sau 7 ngày và mất khi server restart; tài khoản vẫn còn trên đĩa. Backend chạy bằng CLI yêu cầu đăng nhập để vào/tạo phòng. Factory `createBackend()` không có `accountsFile` giữ chế độ khách dành cho test tích hợp.
+Đã thay khung giao diện theo website tham chiếu, thêm đăng ký/đăng nhập và phục hồi phiên bằng cookie HttpOnly. Tài khoản được lưu tại `ACCOUNTS_FILE` (mặc định `data/accounts.json`); mật khẩu băm scrypt với salt. Phiên đăng nhập trong RAM hết hạn sau 7 ngày và mất khi server restart; tài khoản vẫn còn trên đĩa. Backend chạy bằng CLI yêu cầu đăng nhập để vào rạp cộng đồng hoặc tạo phòng; khách có thể vào phòng riêng qua link mời. Factory `createBackend()` không có `accountsFile` giữ chế độ khách dành cho test tích hợp.
 
 Chạy lại backend đang mở để nạp API tài khoản mới. Sau đó dùng `npm run dev` hoặc `npm run build && npm start`. Cần một tiến trình server và ổ đĩa bền để giữ tài khoản. Không có khôi phục mật khẩu, xác minh email, CAPTCHA hoặc bot AI trong bản này.
 
@@ -146,3 +146,41 @@ QA_METADATA_FIXTURE=1 PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs B
 ```
 
 Server fixture chỉ dành cho test: metadata được giả lập và video không được giả lập. Khởi động lại server QA trước mỗi lần chạy để bộ đếm đăng ký không chặn tài khoản test. Không dùng server fixture để triển khai.
+
+
+## Ba tính năng gắn kết người dùng (03/11/2026)
+
+### Vào phòng qua link không cần tài khoản
+
+Chủ phòng chọn **Mời bạn bè**, gửi link `?room=<UUID>` và mật khẩu riêng nếu có. Người nhận mặc định thấy tab **Vào nhanh**: nhập biệt danh → mật khẩu phòng nếu có → vào rạp → chọn ghế. Khách dùng cùng chat, vote, playlist công khai trong phòng và trò chơi theo quyền chủ phòng. Rạp cộng đồng và việc tạo phòng trong chế độ CLI vẫn cần tài khoản. Trong cài đặt có đường dẫn đăng nhập/đăng ký cho khách.
+
+### Đoán bài hát
+
+Bấm **🎵 Đoán bài hát** ở thanh đầu trang (hoặc mở **Hàng chờ**). Chủ phòng nhập link YouTube, đáp án và giây bắt đầu, rồi mở vòng 30 giây. Bài bí mật thay video hiện tại; giao diện che hình video, tắt phụ đề và không gửi tiêu đề, đáp án hoặc hàng chờ trong snapshot khi đang chơi. Bảng playlist chỉ lưu các bài do chủ phòng lưu riêng trước đó. Video ID vẫn cần gửi xuống trình duyệt cho YouTube phát: đây là trò chơi giao lưu, không có cơ chế chống tra cứu ID bằng công cụ lập trình.
+
+Đáp án so khớp không phân biệt hoa thường, dấu tiếng Việt, khoảng trắng hoặc dấu câu; không dùng AI/fuzzy matching. Người đặt câu hỏi không được đoán; mỗi người được tính điểm một lần/vòng, tối đa 100 điểm tùy thời gian còn lại; đoán sai cách nhau tối thiểu một giây. Server quyết định deadline, quyền và điểm. Hết giờ hoặc chủ phòng kết thúc vòng sẽ hiện đáp án, dừng bài; có thể mở vòng tiếp, điểm cộng dồn trong buổi chơi. Điều khiển phát/tua/chuyển bài và thao tác playlist tạm khóa khi chơi. Chat và nút âm thanh cục bộ vẫn dùng được.
+
+Nếu trình duyệt chặn autoplay, dùng **Chạm để bắt đầu** và bật âm thanh để nghe. Video không cho nhúng, bị chặn vùng hoặc đoạn bắt đầu nằm sau thời lượng video có thể không nghe được; chủ phòng có thể kết thúc và chọn bài khác. Điểm và trò chơi nằm trong RAM, khôi phục qua reconnect trong thời gian giữ phiên; restart server sẽ xóa buổi chơi.
+
+### Phòng cố định và playlist lưu
+
+Đăng nhập → **Phòng riêng** → bật **Tạo phòng riêng** và **Phòng cố định** → nhập tên, sức chứa, mật khẩu tùy chọn → **Vào phòng**. Có thể tạo phòng mới ngay cả khi đang ở một phòng riêng khác. Mỗi tài khoản có tối đa 20 phòng cố định. Danh sách **Phòng cố định của bạn** nằm trong cài đặt/phòng riêng; API `GET /api/rooms/mine` yêu cầu đăng nhập và chỉ trả các phòng thuộc tài khoản đó.
+
+Trong **Hàng chờ**, chủ phòng đặt tên rồi bấm **Lưu hàng chờ** để tạo playlist. Mỗi phòng tối đa 20 playlist, mỗi playlist tối đa 30 bài theo giới hạn hàng chờ. Có thể **Thêm vào hàng chờ** (bỏ qua bài trùng, từ chối nếu vượt 30 bài) hoặc **Xóa** playlist. Người khác xem được playlist trong phòng nhưng không được sửa/nạp/xóa.
+
+`ROOMS_FILE` mặc định là `data/rooms.json` khi chạy CLI. File lưu ID/link, chủ sở hữu theo tài khoản, tên, sức chứa, quyền, hash mật khẩu và playlist; ghi vào file tạm rồi rename. Phòng cố định miễn TTL và thời gian xóa phòng trống; quyền chủ không chuyển cho khách đến trước. Sau restart, link, mật khẩu và playlist còn nguyên, còn chat, hàng chờ đang chạy, ghế, phiên và trò chơi được làm mới. Đăng nhập lại bằng tài khoản chủ để quản lý; phòng có mật khẩu vẫn cần mật khẩu nếu không còn token reconnect. Cần giữ **cả ACCOUNTS_FILE và ROOMS_FILE trên ổ đĩa bền**, chạy một tiến trình. Factory `createBackend({roomsFile, accountsFile})` cho phép chọn kho lưu khi nhúng/test; bỏ `roomsFile` chỉ giữ thư viện phòng trong bộ nhớ.
+
+Sự kiện mới (mutation yêu cầu thành viên, kiểm tra chủ trên server, trả ack `{ok:boolean}`):
+
+| Event | Dữ liệu |
+| --- | --- |
+| `room:create` | thêm `persistent?: boolean` |
+| `playlist:save` | `{name}` — lưu hàng chờ hiện tại |
+| `playlist:load` / `playlist:delete` | `{id}` |
+| `game:start` | `{url, answer, start}` — chủ mở vòng |
+| `game:guess` | `{answer}` |
+| `game:stop` | `null` — chủ kết thúc sớm |
+
+Snapshot thêm `hostId`, `persistent`, `playlists`, `game` (trạng thái, deadline, vòng, bảng điểm, danh sách người đoán đúng; đáp án chỉ xuất hiện sau vòng). Không gửi account key hoặc hash mật khẩu xuống client.
+
+Kiểm tra: `npm test` có test tích hợp cho khách qua link, mật khẩu, quyền chủ khi khách vào trước, phòng/playlist qua restart, lỗi ghi đĩa và đáp án/điểm/deadline/reconnect của trò chơi. `tests/serve-engagement.mjs` mở server QA cổng 31403 dùng dữ liệu tạm và metadata fixture; chạy `tests/browser-engagement.mjs` với `PLAYWRIGHT_MODULE`/`CHROME_PATH` phù hợp để kiểm tra UI desktop/mobile. Không dùng server fixture để xác nhận phát nhạc YouTube thực tế.

@@ -38,6 +38,8 @@ import {
 import type { Room } from "./types";
 import { AddVideoForm } from "./AddVideoForm";
 import { ProfileForm, type AccountProfile } from "./ProfileForm";
+import { RoomActivities, SavedRooms } from "./RoomActivities";
+import "./room-activities.css";
 import { EntryCard } from "./EntryCard";
 import { CinemaHud, type CameraView } from "./CinemaHud";
 import { ambientPeople } from "./theater/ambience";
@@ -48,6 +50,7 @@ import "./style.css";
 import "./ui.css";
 import "./reference.css";
 import "./cinema-hud.css";
+import "./cinema-theme.css";
 const localId = () =>
   globalThis.crypto?.randomUUID?.() ||
   Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -139,6 +142,7 @@ export default function App() {
   const selectAfterJoin=useRef(false);
   const [adding, setAdding] = useState(false);
   const [privateRoom, setPrivateRoom] = useState(false);
+  const [persistentRoom,setPersistentRoom] = useState(false);
   const [roomName, setRoomName] = useState("");
   const [capacity, setCapacity] = useState(10);
   const [password, setPassword] = useState("");
@@ -237,11 +241,12 @@ export default function App() {
     const joinTimeout = setTimeout(() => {if (socket.current === s) {setJoining(false); notify("Kết nối chậm. Bạn có thể chờ hoặc thử vào lại.");}}, 12000);
     const s = io({ timeout: 5000 });
     socket.current = s;
-    let revision = -1, generation = 0, bestRtt = Infinity, hasJoined = false;
+    let revision = -1, generation = 0, bestRtt = Infinity, hasJoined = false, joinedUserId = "";
     const receive = (r: Room) => {
       if (socket.current !== s || !s.connected || !r?.playback || r.playback.revision < revision) return;
       revision = r.playback.revision;
       setRoom(r);
+      if(selectAfterJoin.current&&joinedUserId){const participant=r.participants.find(p=>p.id===joinedUserId);if(participant){selectAfterJoin.current=false;if(participant.seat===null)setSeats(true);}}
     };
     const clock = () => {
       if (!s.connected) return;
@@ -257,8 +262,8 @@ export default function App() {
     s.on("connect", () => {
       generation++; revision = -1; bestRtt = Infinity;
       const enter = () => s.emit("join", { name:entryName, avatar, roomId: roomId.current, password, token: sessionStorage.getItem("cx-session:"+roomId.current) });
-      if (createPrivate && !hasJoined && roomId.current === "community") {
-        s.timeout(5000).emit("room:create", {name:roomName, maxMembers:capacity, password}, (err: Error | null, result: {ok:boolean; roomId:string}) => {
+      if (createPrivate && !hasJoined) {
+        s.timeout(5000).emit("room:create", {name:roomName, maxMembers:capacity, password, persistent:persistentRoom}, (err: Error | null, result: {ok:boolean; roomId:string}) => {
           if (err || !result?.ok) {setJoining(false); notify("Không tạo được phòng. Hãy thử lại."); return;}
           roomId.current = result.roomId;
           history.replaceState(null,"", "?room="+result.roomId); enter();
@@ -280,11 +285,10 @@ export default function App() {
     s.on("joined", (id: string) => {
       if (hasJoined) notify("Đã kết nối lại và đồng bộ rạp.");
       clearTimeout(joinTimeout); hasJoined = true;
-      setMyId(id);
+      joinedUserId=id;setMyId(id);
       setMode("live");
       setConnected(true);
       setJoining(false);
-      if(selectAfterJoin.current){selectAfterJoin.current=false;setSeats(true);}
       localStorage.setItem("cx-name", entryName);
       localStorage.setItem("cx-avatar", avatar);
     });
@@ -334,7 +338,7 @@ export default function App() {
         if (err || !result?.ok) {
           if (event === "chat") setText(data);
           if (event === "queue:add") { setUrl(data.url); setTitle(data.title); setAdd(true); }
-          notify("Gửi dữ liệu thất bại. Nội dung đã được giữ lại để bạn thử lại.");
+          if(err)notify("Gửi dữ liệu thất bại. Nội dung đã được giữ lại để bạn thử lại.");
         }
       });
       return true;
@@ -442,7 +446,8 @@ export default function App() {
     });
     return true;
   };
-  const canControl = ready && (mode === "demo" || (room.participants[0]?.id === myId || !!room.permissions?.playback));
+  const isHost = (room.hostId !== undefined ? room.hostId : room.participants[0]?.id) === myId;
+  const canControl = room.game?.status!=="playing" && ready && (mode === "demo" || (isHost || !!room.permissions?.playback));
   const togglePlay = () => action("playback", { type: room.playback.status === "playing" ? "pause" : "play" });
   const me = room.participants.find((p) => p.id === myId),
     fail = useCallback(() => {
@@ -500,6 +505,7 @@ export default function App() {
           <Users size={14}/><span className="public-label"><span>{mode === 'welcome'?'Chưa vào rạp':`${room.participants.length} đang online`}</span><small title={`Bao gồm ${bots.length} bot minh họa tự đổi ghế`}>{theaterPeople.filter(p=>p.seat!=null).length} / {room.maxMembers || 100} ghế</small></span>
         </div>
         <div className="header-actions">
+          {mode==='live'&&<button className="activity-shortcut" aria-label="🎵 Đoán bài hát" title="Đoán bài hát" onClick={()=>{setTab('queue');setPanel(true);}}><Music2 size={18}/></button>}
           <button
             aria-label="Mời bạn bè"
             className="invite"
@@ -524,6 +530,7 @@ export default function App() {
           {mode!=='welcome'&&<button className="profile" aria-label="Thông tin của bạn" onClick={()=>{if(account)setProfile({...account,...me});else{setAppearance(true);setHelp(true);}}}>{name.slice(0,1).toUpperCase()}</button>}
         </div>
       </header>
+      {mode==='live'&&room.game?.status==='playing'&&<div className="game-banner" role="status"><strong>🎵 Vòng {room.game.round} · {Math.max(0,Math.ceil((room.game.endsAt-now-offset)/1000))} giây</strong><span>{room.game.correctIds.length} người đoán đúng</span><button onClick={()=>{setTab('queue');setPanel(true);}}>Mở trò chơi</button></div>}
       <main>
         <section className="cinema">
           <div className="cinema-top hud-optional">
@@ -548,14 +555,15 @@ export default function App() {
               <span>RẠP CỦA CHÚNG MÌNH</span>
               <span>01</span>
             </div>
-            <div className="screen-frame" ref={playerWrap}>
+            <div className={"screen-frame"+(room.game?.status==='playing'?" guessing":"")} ref={playerWrap}>
+              {room.game?.status==='playing'&&<div className="game-screen-mask"><strong>🎵 Bài hát bí mật</strong><p>{muted?"Bật âm thanh bằng nút loa để nghe bài bí mật":"Nghe nhạc và mở trò chơi để gửi đáp án"}</p></div>}
               <div className="projection" />
               {mode !== "welcome" && !!room.playback.videoId ? (
                 <Player
-                  onEnded={() => { if (mode === "live") action("ended", {videoId: room.playback.videoId}); }}
+                  onEnded={() => { if (mode === "live" && room.game?.status!=="playing") action("ended", {videoId: room.playback.videoId}); }}
                   muted={muted}
                   volume={volume}
-                  captions={captions}
+                  captions={room.game?.status==='playing'?false:captions}
                   playback={room.playback}
                   connected={mode === "demo" || connected}
                   offset={mode === "demo" ? 0 : offset}
@@ -660,7 +668,7 @@ export default function App() {
             hidden={hudHidden} collapsed={dockCollapsed} setCollapsed={setDockCollapsed} laser={laser} setLaser={setLaser}
             muted={muted} setMuted={setMuted} volume={volume} setVolume={setVolume} captions={captions} setCaptions={setCaptions}
             tab={tab} panel={panel} openPanel={target=>{setTab(target);setPanel(!(panel&&tab===target));}} queueCount={room.queue.length} unread={unread}
-            text={text} setText={setText} send={()=>{if(text.trim()&&action('chat',text.trim()))setText('');}} ready={ready} canChat={room.permissions?.chat!==false||room.participants[0]?.id===myId}
+            text={text} setText={setText} send={()=>{if(text.trim()&&action('chat',text.trim()))setText('');}} ready={ready} canChat={room.permissions?.chat!==false||isHost}
             openSeats={()=>setSeats(true)} openAdd={()=>setAdd(true)} openAppearance={()=>{if(account)setProfile({...account,...me});else{setAppearance(true);setHelp(true);}}} openPrivate={()=>setHelp(true)} openCommerce={setCommerce}
             emote={kind=>action('emote',{kind})} notify={notify}/>
 
@@ -797,6 +805,7 @@ export default function App() {
             </>
           ) : tab === "queue" ? (
             <div className="queue-content">
+              {mode==='live'&&<RoomActivities room={room} myId={myId} ready={ready} now={now+offset} action={action}/>}
               <div className="section-label">
                 <span>TIẾP THEO TRONG RẠP</span>
                 <button onClick={() => setAdd(true)}>
@@ -871,7 +880,7 @@ export default function App() {
                     {p.id === myId ? " (bạn)" : ""}
                     <small>{i === 0 ? "Chủ rạp" : "Thành viên"}</small>
                   </strong>
-                  {mode === "live" && room.participants[0]?.id === myId && p.id !== myId && <button onClick={() => action("room:kick", p.id)}>Mời rời phòng</button>}
+                  {mode === "live" && isHost && p.id !== myId && <button onClick={() => action("room:kick", p.id)}>Mời rời phòng</button>}
                   <em>
                     {p.seat == null ? "Chưa chọn ghế" : seatLabel(p.seat)}
                   </em>
@@ -892,7 +901,7 @@ export default function App() {
           </div>
         </aside>
       </main>
-      {mode === "welcome" && <EntryCard roomPasswordRequired={roomId.current !== "community"} roomPassword={password} setRoomPassword={setPassword} joining={joining} onAuthenticated={user => {setAccount(user);setName(user.name);if(!user.configured)setProfile(user);else join(user.name);}} onDemo={enterDemo}/>}
+      {mode === "welcome" && <EntryCard onGuest={guestName=>{setName(guestName);selectAfterJoin.current=true;join(guestName,false);}} roomPasswordRequired={roomId.current !== "community"} roomPassword={password} setRoomPassword={setPassword} joining={joining} onAuthenticated={user => {setAccount(user);setName(user.name);if(!user.configured)setProfile(user);else join(user.name);}} onDemo={enterDemo}/>}
       {notice && (
         <div className="toast" role="status">
           <Info size={17} />
@@ -966,13 +975,14 @@ export default function App() {
                 </div>}
                 {appearance && <div className="avatar-options">{avatars.map(a => <button key={a} aria-label={"Chọn " + a} aria-pressed={avatar === a} className={avatar === a ? "chosen" : ""} onClick={() => { setAvatar(a); localStorage.setItem("cx-avatar", a); if (mode === "demo") setRoom(r => ({...r, participants: r.participants.map(p => p.id === myId ? {...p, avatar: a} : p)})); else notify("Đã lưu ngoại hình. Ngoại hình mới được áp dụng khi bạn vào lại rạp."); }}>{a}</button>)}</div>}
                 <button className="mode-button" aria-pressed={twoD} aria-label={twoD ? "Chuyển sang không gian 3D" : "Chuyển sang chế độ 2D"} onClick={() => setTwoD(!twoD)}><LayoutGrid size={18} />{twoD ? "Chuyển sang rạp 3D" : "Chuyển sang rạp 2D"}</button>
-                {mode === "live" && room.participants[0]?.id === myId && room.permissions && <div>{([['chat','Chat'],['addVideo','Thêm video'],['playback','Điều khiển phát']] as const).map(([key,label]) => <label key={key}><input type="checkbox" checked={room.permissions![key]} onChange={e => action("room:permissions", {[key]:e.target.checked})} /> Thành viên: {label}</label>)}</div>}
+                {mode === "live" && isHost && room.permissions && <div>{([['chat','Chat'],['addVideo','Thêm video'],['playback','Điều khiển phát']] as const).map(([key,label]) => <label key={key}><input type="checkbox" checked={room.permissions![key]} onChange={e => action("room:permissions", {[key]:e.target.checked})} /> Thành viên: {label}</label>)}</div>}
                 {mode !== "welcome" && <form onSubmit={e => {e.preventDefault(); action("playback", {type:"seek", position:Number(new FormData(e.currentTarget).get("seconds"))});}}>
                   <label>Tua đến giây <input aria-label="Tua trong cài đặt (giây)" name="seconds" type="number" min="0" max="86400" step="0.1" defaultValue="0" disabled={!canControl} /></label>
                   <button disabled={!canControl}>Tua video</button>
                   <button type="button" disabled={!canControl || !room.queue.length} onClick={() => action("next")}>Chuyển bài tiếp theo</button>
                 </form>}
-                {<form className="private-create-form" onSubmit={e=>{e.preventDefault(); const start=()=>{setHelp(false);setMode("welcome");join(name,true);}; if(mode === "live") {socketCleanup.current();const s=socket.current;s?.timeout(2000).emit("room:leave",null,()=>{s.disconnect();start();});}else start();}}><h2>Phòng riêng</h2><label><input type="checkbox" checked={privateRoom} onChange={e=>setPrivateRoom(e.target.checked)}/> Tạo phòng riêng</label>{privateRoom&&<><label>Tên phòng<input required maxLength={60} value={roomName} onChange={e=>setRoomName(e.target.value)}/></label><label>Giới hạn người<input type="number" min={1} max={100} value={capacity} onChange={e=>setCapacity(Number(e.target.value))}/></label></>}<label>Mật khẩu phòng (nếu có)<input type="password" maxLength={128} value={password} onChange={e=>setPassword(e.target.value)}/></label><button className="primary" disabled={!privateRoom}>Vào phòng</button></form>}
+                {account?<SavedRooms/>:<p><a href={location.pathname+location.search}>Đăng nhập / tạo tài khoản để lưu hồ sơ và tạo phòng cố định</a></p>}
+                {<form className="private-create-form" onSubmit={e=>{e.preventDefault(); const start=()=>{setHelp(false);setMode("welcome");join(name,true);}; if(mode === "live") {socketCleanup.current();const s=socket.current;s?.timeout(2000).emit("room:leave",null,()=>{s.disconnect();start();});}else start();}}><h2>Phòng riêng</h2><label><input type="checkbox" checked={privateRoom} onChange={e=>setPrivateRoom(e.target.checked)}/> Tạo phòng riêng</label>{privateRoom&&<><label><input type="checkbox" checked={persistentRoom} disabled={!account} onChange={e=>setPersistentRoom(e.target.checked)}/> Phòng cố định · giữ link và playlist sau restart</label>{!account&&<p>Đăng nhập để tạo phòng cố định.</p>}<label>Tên phòng<input required maxLength={60} value={roomName} onChange={e=>setRoomName(e.target.value)}/></label><label>Giới hạn người<input type="number" min={1} max={100} value={capacity} onChange={e=>setCapacity(Number(e.target.value))}/></label></>}<label>Mật khẩu phòng (nếu có)<input type="password" maxLength={128} value={password} onChange={e=>setPassword(e.target.value)}/></label><button className="primary" disabled={!privateRoom}>Vào phòng</button></form>}
                 <h2>Một chiếc rạp, gần nhau hơn.</h2>
                 <p>
                   Rạp công khai 100 ghế. Xem YouTube, nghe nhạc, bình chọn và

@@ -1,0 +1,15 @@
+{
+  "checks": [
+    "Authenticated owner creates permanent password-protected room through UI",
+    "Invited mobile guest joins and selects seat without account",
+    "Queue saved as named playlist in permanent room",
+    "Two independent browsers share game; guest scores with normalized answer, answer remains hidden",
+    "Host ends round; answer and cumulative scoreboard revealed",
+    "Guest session and game scores survive reload without entering room password again",
+    "Owner reload restores room and saved playlist",
+    "Settings lists permanent rooms belonging to signed-in owner",
+    "390px mobile layout has no horizontal overflow; no uncaught application errors"
+  ],
+  "pageErrors": [],
+  "fixtures": "Temporary accounts/rooms; fixture metadata; YouTube network playback not certified."
+}
